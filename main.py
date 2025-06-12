@@ -167,7 +167,7 @@ def _apply_inline_styles(text_with_markers, base_index, requests):
 
 
 def convert_markdown_to_docs_format(text):
-    """
+    r"""
     Convert Markdown into Google Docs batchUpdate requests. The converter now
     makes three key improvements:
       1. **All asterisk markers (\*) are stripped** from the text before it is
