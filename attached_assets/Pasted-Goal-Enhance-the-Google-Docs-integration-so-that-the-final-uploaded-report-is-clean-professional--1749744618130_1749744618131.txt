@@ -1,0 +1,59 @@
+Goal:
+Enhance the Google Docs integration so that the final uploaded report is clean, professional, and free of Markdown artifacts.
+This includes removing all Markdown (##, *, etc.), converting headings/bullets properly, and converting Markdown tables into readable, nicely formatted plain text tables.
+
+Instructions:
+
+1. Insert a New Formatting Step in the Pipeline
+After receiving the raw LLM (o1-mini) output (report_text), before creating the Google Doc, send the text to a fast LLM (e.g. GPT-4o or GPT-3.5-turbo) for cleanup and formatting.
+
+This should be done automatically for every report before Google Doc creation.
+
+2. Use This LLM Prompt for Formatting
+Call your LLM with the following system and user prompts (example in Python pseudocode):
+
+System Prompt:
+sql
+Copy
+You are an expert technical editor. Your job is to convert tax planning reports written in Markdown into clean, professional business text suitable for pasting into a Google Doc. The output should be free of Markdown artifacts and should look like a finished, business-ready deliverable.
+User Prompt:
+yaml
+Copy
+Take the following tax planning report, which uses Markdown formatting, and convert it to plain text suitable for Google Docs. 
+
+- Remove all Markdown symbols (such as #, ##, ###, *, -, **, etc).
+- Format headings as clear section titles.
+- Format bullet points and numbered lists as readable lists (not Markdown).
+- For any Markdown tables (delimited by | or ---), convert them into plain text tables, using spacing, dashes, or another readable method that will render well in Google Docs. Make sure the table remains aligned and easy to read.
+- Retain bold/italic formatting as plain text emphasis only (do not use ** or *). If you need to, use capitalization or context instead.
+- The result should look clean, readable, and ready to send to an executive. Do not add any additional commentary.
+- Do not include any code blocks or Markdown blockquotes.
+
+Here is the report:
+
+---
+{report_text}
+---
+Output:
+
+Use the cleaned text from the LLM as the body for the Google Doc upload.
+
+3. Implementation Details
+LLM choice: Use GPT-4o for best quality, or GPT-3.5-turbo for speed/cost.
+
+Integration: This step should be a new function, e.g. clean_report_for_google_docs(report_text), called right before create_google_doc().
+
+Tables: Make sure the LLM is explicitly instructed to reformat any table for readability in Google Docs, not as Markdown.
+
+Testing: Test with reports that contain tables and various Markdown features to ensure robustness.
+
+4. Summary of Workflow
+Generate report with o1-mini.
+
+Send the report to a fast LLM using the above prompt.
+
+Receive the cleaned, formatted plain text.
+
+Create the Google Doc with this formatted text.
+
+(Optional) Use a similar LLM call to generate a professional document title if desired.

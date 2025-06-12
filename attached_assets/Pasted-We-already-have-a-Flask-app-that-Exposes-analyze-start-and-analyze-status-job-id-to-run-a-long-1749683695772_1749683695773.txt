@@ -1,0 +1,63 @@
+We already have a Flask app that:
+
+Exposes /analyze/start and /analyze/status/<job_id> to run a long-running TaxGPT analysis asynchronously.
+
+Returns the LLM’s structured tax report text via the status endpoint.
+
+Now extend only the Replit project to:
+
+Load and refresh Google OAuth2 credentials (you’ve already created the OAuth2 client in Google Cloud and stored credentials in Replit Secrets: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN).
+
+After the TaxGPT analysis completes (in /analyze/status, when status == "done"), call the Google Docs API to:
+
+Create a new Google Doc titled "Tax Report – <job_id>".
+
+Insert the full report text (the answer string), converting markdown-style headings (#, ##, etc.) to Google Docs heading styles, bold/italic markers to true text style, and Markdown lists (- ) to proper bullet lists.
+
+Send all formatting and insertion in one documents.batchUpdate call whenever possible to minimize write requests.
+
+Use the Google Drive API to:
+
+Set the new document’s permissions to “anyone with link can view” (type: “anyone”, role: “reader”).
+
+Retrieve the document’s webViewLink.
+
+Modify the /analyze/status/<job_id> response to include a new field:
+
+json
+Copy
+{
+  "status": "done",
+  "answer": "...",
+  "sources": [...],
+  "doc_url": "https://docs.google.com/document/d/<doc_id>/edit?usp=sharing"
+}
+Ensure token management:
+
+Use google-auth-oauthlib or google.oauth2.credentials with google.auth.transport.requests.Request to refresh access tokens automatically when expired.
+
+Store and reuse the refresh token from GOOGLE_REFRESH_TOKEN.
+
+Update dependencies in replit.nix to include:
+
+python310Packages.google-api-python-client
+
+python310Packages.google-auth
+
+python310Packages.google-auth-oauthlib
+
+Add README.md sections showing:
+
+How to set the three Google Secrets in Replit.
+
+Example curl for /analyze/status/<job_id>.
+
+Example how to open doc_url in a browser.
+
+Deliver the full main.py, updated replit.nix, and any helper modules. Keep all existing analysis logic untouched; just add the Google Docs/Drive integration and enrich the JSON response.
+
+
+
+
+
+
