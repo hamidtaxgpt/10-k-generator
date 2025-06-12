@@ -468,4 +468,6 @@ def not_allowed(e):
 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    # Use port 5001 locally to avoid conflicts
+    port = int(os.environ.get("PORT", 5001))
+    app.run(host='0.0.0.0', port=port)
