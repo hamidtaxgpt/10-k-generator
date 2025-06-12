@@ -88,162 +88,198 @@ def get_google_credentials():
     return creds
 
 
-def _apply_inline_styles(text, base_index, requests):
-    """Emit updateTextStyle calls for **bold** and *italic*."""
-    # Bold formatting - skip the leading and trailing '**'
-    for m in re.finditer(r'\*\*(.+?)\*\*', text):
-        start = base_index + m.start() + 2
-        end = base_index + m.end() - 2
+def _apply_inline_styles(text_with_markers, base_index, requests):
+    """Emit updateTextStyle calls for **bold** and *italic* taking into account
+    that the text which will be/has been inserted into the document has all
+    Markdown asterisk markers stripped out.
+
+    The function therefore builds a mapping from the character positions in the
+    *original* markdown string (containing asterisks) to the character
+    positions of the *clean* string (with all * removed). Using this mapping we
+    can calculate the correct Google-Docs index ranges after insertion.
+    """
+    # Build forward mapping: original_index -> cleaned_index (or None for markers)
+    orig_to_clean: dict[int, int] = {}
+    clean_chars = []
+    for i, ch in enumerate(text_with_markers):
+        if ch != "*":
+            orig_to_clean[i] = len(clean_chars)
+            clean_chars.append(ch)
+        else:
+            # asterisk markers are removed; they do not appear in clean text
+            pass
+
+    # Helper to translate a span (start, end) in the original text into the
+    # equivalent (start, end) span in the cleaned text, assuming * markers have
+    # been removed. `end` is exclusive.
+    def translate_span(start_orig: int, end_orig: int) -> tuple[int, int]:
+        """Return (start_clean, end_clean) for the provided original span."""
+        # Advance forward from start_orig until we hit a non-marker character to
+        # guard against unexpected multiple consecutive asterisks.
+        while start_orig < end_orig and start_orig not in orig_to_clean:
+            start_orig += 1
+        # Likewise move the end index backwards so that end_orig-1 maps to the
+        # last character *inside* the style span. Google Docs endIndex is
+        # exclusive so we subsequently add +1.
+        last_orig_char = end_orig - 1
+        while last_orig_char >= start_orig and last_orig_char not in orig_to_clean:
+            last_orig_char -= 1
+        if start_orig > last_orig_char:
+            # Nothing left after stripping (should not happen, but guard anyway)
+            return (0, 0)
+        start_clean = orig_to_clean[start_orig]
+        end_clean = orig_to_clean[last_orig_char] + 1  # exclusive
+        return (start_clean, end_clean)
+
+    # Bold (**text**)
+    for m in re.finditer(r"\*\*(.+?)\*\*", text_with_markers):
+        # Exclude the leading/trailing ** when translating
+        span_start, span_end = translate_span(m.start() + 2, m.end() - 2)
+        if span_start == span_end:
+            continue  # empty span after stripping, skip
         requests.append({
-            'updateTextStyle': {
-                'range': {
-                    'startIndex': start,
-                    'endIndex': end
+            "updateTextStyle": {
+                "range": {
+                    "startIndex": base_index + span_start,
+                    "endIndex": base_index + span_end,
                 },
-                'textStyle': {
-                    'bold': True
-                },
-                'fields': 'bold'
+                "textStyle": {"bold": True},
+                "fields": "bold",
             }
         })
-    
-    # Italic formatting - tighter regex to avoid catching bold markers
-    italics_pattern = r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)'
-    for m in re.finditer(italics_pattern, text):
-        start = base_index + m.start() + 1
-        end = base_index + m.end() - 1
+
+    # Italic (*text*) – use look-arounds to make sure we do not match **bold**
+    italics_pattern = r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"
+    for m in re.finditer(italics_pattern, text_with_markers):
+        span_start, span_end = translate_span(m.start() + 1, m.end() - 1)
+        if span_start == span_end:
+            continue
         requests.append({
-            'updateTextStyle': {
-                'range': {
-                    'startIndex': start,
-                    'endIndex': end
+            "updateTextStyle": {
+                "range": {
+                    "startIndex": base_index + span_start,
+                    "endIndex": base_index + span_end,
                 },
-                'textStyle': {
-                    'italic': True
-                },
-                'fields': 'italic'
+                "textStyle": {"italic": True},
+                "fields": "italic",
             }
         })
 
 
 def convert_markdown_to_docs_format(text):
     """
-    Convert Markdown into Google Docs batchUpdate requests,
-    handling headings, bullets, tables, bold and italics.
+    Convert Markdown into Google Docs batchUpdate requests. The converter now
+    makes three key improvements:
+      1. **All asterisk markers (\*) are stripped** from the text before it is
+         inserted into the document – this guarantees that no stray markup
+         remains visible.
+      2. **Bold/italic offsets are corrected** via the improved
+         `_apply_inline_styles` helper which calculates style ranges relative to
+         the cleaned text.
+      3. **Markdown tables are converted to tab-delimited text** which renders
+         as columns in Google Docs and avoids invalid `tableCellLocation`
+         payloads.
     """
     requests_batch = []
     lines = text.split("\n")
     idx = 0
-    current_index = 1
+    current_index = 1  # Google Docs body content starts at index 1
 
     while idx < len(lines):
         line = lines[idx]
 
-        # Table detection - fallback to tab-delimited plain text
+        # 1) Table detection – convert to tab-delimited plain text
         if line.strip().startswith("|") and "|" in line:
-            # Collect table block
-            tbl = []
+            tbl_lines = []
             while idx < len(lines) and lines[idx].strip().startswith("|"):
-                tbl.append(lines[idx].strip())
+                tbl_lines.append(lines[idx].strip())
                 idx += 1
 
-            # Parse rows and render as tab-delimited text
-            rows = [row.strip("| ").split("|") for row in tbl]
-            
-            # Render each row as a single line with tabs
-            for row in rows:
-                line_text = "\t".join(cell.strip() for cell in row) + "\n"
+            # Parse and render each row as TAB-delimited text
+            for row in tbl_lines:
+                cells = [cell.strip() for cell in row.strip("| ").split("|")]
+                line_text = "\t".join(cells) + "\n"
                 requests_batch.append({
                     "insertText": {
                         "location": {"index": current_index},
-                        "text": line_text
+                        "text": line_text,
                     }
                 })
                 current_index += len(line_text)
+            continue  # proceed to next outer while iteration
 
-            continue  # skip the normal processing
-
-        # Blank line
+        # 2) Blank line
         if not line.strip():
             requests_batch.append({
-                'insertText': {
-                    'location': {
-                        'index': current_index
-                    },
-                    'text': "\n"
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": "\n",
                 }
             })
             current_index += 1
             idx += 1
             continue
 
-        # Headings
-        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2"),
-                              ("#", "HEADING_1")]:
+        # Helper to insert cleaned text and apply inline styles
+        def _insert_paragraph(raw_text: str, paragraph_style: str | None = None, bullet: bool = False):
+            nonlocal current_index, requests_batch
+            clean_text = re.sub(r"\*+", "", raw_text) + "\n"
+            # Insert the clean text first
+            requests_batch.append({
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": clean_text,
+                }
+            })
+            # Apply heading style if requested
+            if paragraph_style:
+                requests_batch.append({
+                    "updateParagraphStyle": {
+                        "range": {
+                            "startIndex": current_index,
+                            "endIndex": current_index + len(clean_text) - 1,
+                        },
+                        "paragraphStyle": {"namedStyleType": paragraph_style},
+                        "fields": "namedStyleType",
+                    }
+                })
+            # Apply bullet preset if requested
+            if bullet:
+                requests_batch.append({
+                    "createParagraphBullets": {
+                        "range": {
+                            "startIndex": current_index,
+                            "endIndex": current_index + len(clean_text) - 1,
+                        },
+                        "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+                    }
+                })
+            # Apply bold / italic styling based on the *original* raw text.
+            _apply_inline_styles(raw_text + "\n", current_index, requests_batch)
+            current_index += len(clean_text)
+
+        # 3) Headings
+        handled_heading = False
+        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
             if line.startswith(prefix):
-                content = line[len(prefix):].strip() + "\n"
-                requests_batch.append({
-                    'insertText': {
-                        'location': {
-                            'index': current_index
-                        },
-                        'text': content
-                    }
-                })
-                requests_batch.append({
-                    'updateParagraphStyle': {
-                        'range': {
-                            'startIndex': current_index,
-                            'endIndex': current_index + len(content) - 1
-                        },
-                        'paragraphStyle': {
-                            'namedStyleType': style
-                        },
-                        'fields': 'namedStyleType'
-                    }
-                })
-                current_index += len(content)
+                heading_text = line[len(prefix):].strip()
+                _insert_paragraph(heading_text, paragraph_style=style)
                 idx += 1
+                handled_heading = True
                 break
-        else:
-            # Bullet list
-            if line.strip().startswith("- "):
-                content = line.strip()[2:] + "\n"
-                requests_batch.append({
-                    'insertText': {
-                        'location': {
-                            'index': current_index
-                        },
-                        'text': content
-                    }
-                })
-                requests_batch.append({
-                    'createParagraphBullets': {
-                        'range': {
-                            'startIndex': current_index,
-                            'endIndex': current_index + len(content) - 1
-                        },
-                        'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
-                    }
-                })
-                _apply_inline_styles(content, current_index, requests_batch)
-                current_index += len(content)
-                idx += 1
-            else:
-                # Plain text (with inline styling)
-                content = line + "\n"
-                clean = re.sub(r"\*+", "", content)
-                requests_batch.append({
-                    'insertText': {
-                        'location': {
-                            'index': current_index
-                        },
-                        'text': clean
-                    }
-                })
-                _apply_inline_styles(content, current_index, requests_batch)
-                current_index += len(clean)
-                idx += 1
+        if handled_heading:
+            continue
+
+        # 4) Bullet list item
+        if line.strip().startswith("- "):
+            bullet_text = line.strip()[2:]
+            _insert_paragraph(bullet_text, bullet=True)
+            idx += 1
+            continue
+
+        # 5) Plain paragraph text
+        _insert_paragraph(line)
+        idx += 1
 
     return requests_batch
 
@@ -279,7 +315,7 @@ def create_google_doc(report_text, job_id):
                                        "type": "anyone"
                                    }).execute()
     except Exception as e:
-        logger.warning(f"Couldn’t set public permissions: {e}")
+        logger.warning(f"Couldn't set public permissions: {e}")
 
     return f"https://docs.google.com/document/d/{doc_id}/edit?usp=sharing"
 
