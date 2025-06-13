@@ -202,75 +202,46 @@ def convert_markdown_to_docs_format(text):
     while idx < len(lines):
         line = lines[idx]
 
-        # 1) Table detection – convert to actual Google Docs table
+        # 1) Table detection – fallback to tab-delimited monospace so columns align
         if line.strip().startswith("|") and "|" in line:
-            table_md_lines = []
+            tbl_lines = []
             while idx < len(lines) and lines[idx].strip().startswith("|"):
-                table_md_lines.append(lines[idx].strip())
+                tbl_lines.append(lines[idx].strip())
                 idx += 1
 
-            # Parse markdown table rows
-            rows_parsed = [
-                [cell.strip() for cell in md_row.strip("| ").split("|")]
-                for md_row in table_md_lines
-            ]
+            # Parse rows and render as tab-delimited text; skip separator row of dashes
+            for row in tbl_lines:
+                cells_raw = [c.strip() for c in row.strip("| ").split("|")]
+                if all(re.fullmatch(r"-+", c) for c in cells_raw):
+                    continue  # skip markdown separator
 
-            # Skip separator line (row of dashes)
-            data_rows = []
-            for r in rows_parsed:
-                dash_cells = [c for c in r if re.fullmatch(r"-+", c)]
-                if len(dash_cells) == len(r):
-                    continue  # skip separator
-                data_rows.append(r)
+                line_text = "\t".join(re.sub(r"\*+", "", c) for c in cells_raw) + "\n"
 
-            if not data_rows:
-                continue
-
-            header = data_rows[0]
-            body   = data_rows[1:]
-
-            col_count = len(header)
-            row_count = len(body) + 1  # include header
-
-            # Insert empty table placeholder
-            table_start = current_index
-            requests_batch.append({
-                "insertTable": {
-                    "rows": row_count,
-                    "columns": col_count,
-                    "location": {"index": current_index},
-                }
-            })
-            current_index += 1  # table occupies one element in the doc body
-
-            def _clean(text: str) -> str:
-                return re.sub(r"\*+", "", text.strip())
-
-            # Helper to insert text into a specific cell
-            def _insert_cell(r: int, c: int, text: str):
-                if not text:
-                    return
+                # Insert the line
                 requests_batch.append({
                     "insertText": {
-                        "text": text,
-                        "tableCellLocation": {
-                            "tableStartLocation": {"index": table_start},
-                            "rowIndex": r,
-                            "columnIndex": c,
-                        },
+                        "location": {"index": current_index},
+                        "text": line_text,
                     }
                 })
 
-            # Fill header row (row 0)
-            for col_idx, cell_text in enumerate(header):
-                _insert_cell(0, col_idx, _clean(cell_text))
+                # Apply monospace font so tabs align
+                requests_batch.append({
+                    "updateTextStyle": {
+                        "range": {
+                            "startIndex": current_index,
+                            "endIndex": current_index + len(line_text) - 1,
+                        },
+                        "textStyle": {
+                            "weightedFontFamily": {"fontFamily": "Courier New"}
+                        },
+                        "fields": "weightedFontFamily",
+                    }
+                })
 
-            # Fill body rows
-            for r_idx, row in enumerate(body):
-                for c_idx, cell_text in enumerate(row):
-                    _insert_cell(r_idx + 1, c_idx, _clean(cell_text))
+                current_index += len(line_text)
 
-            continue  # table handled, proceed to next outer while iteration
+            continue  # table handled
 
         # 2) Blank line
         if not line.strip():
