@@ -272,13 +272,8 @@ def convert_markdown_to_docs_format(text):
             # Apply bold / italic styling based on the *original* raw text.
             base_for_styles = current_index + len(tab_prefix)
             _apply_inline_styles(raw_text + "\n", base_for_styles, requests_batch)
-            current_index += len(clean_text)
-
-            # Insert an extra newline to keep cursor < segmentEnd for next operations
-            requests_batch.append({
-                "insertText": {"location": {"index": current_index}, "text": "\n"}
-            })
-            current_index += 1
+            # Keep cursor positioned on the newline we just inserted
+            current_index += len(clean_text) - 1
 
         # 3) Headings
         handled_heading = False
