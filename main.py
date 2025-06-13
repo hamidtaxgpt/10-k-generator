@@ -235,7 +235,7 @@ def convert_markdown_to_docs_format(text):
             continue
 
         # Helper to insert cleaned text and apply inline styles
-        def _insert_paragraph(raw_text: str, paragraph_style: str | None = None, bullet: bool = False):
+        def _insert_paragraph(raw_text: str, paragraph_style: str | None = None, bullet: bool = False, nesting_level: int = 0):
             nonlocal current_index, requests_batch
             clean_text = re.sub(r"\*+", "", raw_text) + "\n"
             # Insert the clean text first
@@ -266,6 +266,7 @@ def convert_markdown_to_docs_format(text):
                             "endIndex": current_index + len(clean_text) - 1,
                         },
                         "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+                        "nestingLevel": nesting_level,
                     }
                 })
             # Apply bold / italic styling based on the *original* raw text.
@@ -285,9 +286,12 @@ def convert_markdown_to_docs_format(text):
             continue
 
         # 4) Bullet list item
-        if line.strip().startswith("- "):
-            bullet_text = line.strip()[2:]
-            _insert_paragraph(bullet_text, bullet=True)
+        import re as _re_  # local alias to avoid top-of-file import clash
+        bullet_match = _re_.match(r"(\s*)-\s+(.*)", line)
+        if bullet_match:
+            leading_spaces, bullet_text = bullet_match.groups()
+            nesting_level = len(leading_spaces) // 2  # every 2 spaces => deeper level
+            _insert_paragraph(bullet_text, bullet=True, nesting_level=nesting_level)
             idx += 1
             continue
 
