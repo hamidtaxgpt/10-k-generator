@@ -255,6 +255,15 @@ def convert_markdown_to_docs_format(text):
 
                 current_index += len(line_text)
 
+                # Add a blank line after each table row for visual spacing
+                requests_batch.append({
+                    "insertText": {
+                        "location": {"index": current_index},
+                        "text": "\n",
+                    }
+                })
+                current_index += 1
+
             continue  # table handled
 
         # 2) Blank line
