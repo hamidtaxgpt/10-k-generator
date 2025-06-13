@@ -13,6 +13,7 @@ from openai import OpenAI
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+from datetime import datetime, timezone
 
 # Load environment variables from .env file if it exists
 try:
@@ -407,7 +408,11 @@ def analyze_with_openai_async(job_id, filing_text):
     if len(filing_text) > 100_000:
         filing_text = filing_text[:100_000] + "\n\n[Truncated]"
 
+    from datetime import datetime, timezone
+    today_str = datetime.now(timezone.utc).strftime("%B %d, %Y")
+
     prompt = (
+        f"Report date: {today_str}\n\n"  # give the model the current date
         """You are a senior corporate tax advisor analyzing the full 10-K filing for a public U.S. company. Your task is to produce a structured tax planning report for the company's executive tax team.
 
 Use the language of the filing when appropriate. Anchor your insights in specific phrases, footnotes, or financial disclosures from the document.
