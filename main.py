@@ -210,15 +210,29 @@ def convert_markdown_to_docs_format(text):
                 tbl_lines.append(lines[idx].strip())
                 idx += 1
 
-            # Parse rows and render as tab-delimited text; skip separator row of dashes
-            for row in tbl_lines:
-                cells_raw = [c.strip() for c in row.strip("| ").split("|")]
-                if all(re.fullmatch(r"-+", c) for c in cells_raw):
-                    continue  # skip markdown separator
+            # Build cleaned table cells
+            parsed_rows = []
+            for r in tbl_lines:
+                cells = [re.sub(r"\*+", "", c.strip()) for c in r.strip("| ").split("|")]
+                parsed_rows.append(cells)
 
-                line_text = "\t".join(re.sub(r"\*+", "", c) for c in cells_raw) + "\n"
+            # Remove separator row of dashes if present
+            if parsed_rows and all(re.fullmatch(r"-+", c) for c in parsed_rows[1]):
+                parsed_rows.pop(1)
 
-                # Insert the line
+            # Compute maximum width of each column
+            col_count = max(len(r) for r in parsed_rows)
+            col_widths = [0] * col_count
+            for r in parsed_rows:
+                for i, cell in enumerate(r):
+                    col_widths[i] = max(col_widths[i], len(cell))
+
+            # Emit rows with space-padded columns
+            for row_cells in parsed_rows:
+                padded_cells = [row_cells[i].ljust(col_widths[i]) if i < len(row_cells) else ''.ljust(col_widths[i])
+                                for i in range(col_count)]
+                line_text = "  ".join(padded_cells) + "\n"  # two spaces between columns
+
                 requests_batch.append({
                     "insertText": {
                         "location": {"index": current_index},
@@ -226,7 +240,6 @@ def convert_markdown_to_docs_format(text):
                     }
                 })
 
-                # Apply monospace font so tabs align
                 requests_batch.append({
                     "updateTextStyle": {
                         "range": {
