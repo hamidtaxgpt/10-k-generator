@@ -237,8 +237,7 @@ def convert_markdown_to_docs_format(text):
         # Helper to insert cleaned text and apply inline styles
         def _insert_paragraph(raw_text: str, paragraph_style: str | None = None, bullet: bool = False, nesting_level: int = 0):
             nonlocal current_index, requests_batch
-            tab_prefix = "\t" * nesting_level if bullet else ""
-            clean_text = tab_prefix + re.sub(r"\*+", "", raw_text) + "\n"
+            clean_text = re.sub(r"\*+", "", raw_text) + "\n"
             # Insert the clean text first
             requests_batch.append({
                 "insertText": {
@@ -270,10 +269,8 @@ def convert_markdown_to_docs_format(text):
                     }
                 })
             # Apply bold / italic styling based on the *original* raw text.
-            base_for_styles = current_index + len(tab_prefix)
-            _apply_inline_styles(raw_text + "\n", base_for_styles, requests_batch)
-            # Keep cursor positioned on the newline we just inserted
-            current_index += len(clean_text) - 1
+            _apply_inline_styles(raw_text + "\n", current_index, requests_batch)
+            current_index += len(clean_text)
 
         # 3) Headings
         handled_heading = False
@@ -288,12 +285,9 @@ def convert_markdown_to_docs_format(text):
             continue
 
         # 4) Bullet list item
-        import re as _re_  # local alias to avoid top-of-file import clash
-        bullet_match = _re_.match(r"(\s*)-\s+(.*)", line)
-        if bullet_match:
-            leading_spaces, bullet_text = bullet_match.groups()
-            nesting_level = len(leading_spaces) // 2  # every 2 spaces => deeper level
-            _insert_paragraph(bullet_text, bullet=True, nesting_level=nesting_level)
+        if line.strip().startswith("- "):
+            bullet_text = line.strip()[2:]
+            _insert_paragraph(bullet_text, bullet=True)
             idx += 1
             continue
 
