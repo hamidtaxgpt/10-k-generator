@@ -274,6 +274,12 @@ def convert_markdown_to_docs_format(text):
             _apply_inline_styles(raw_text + "\n", base_for_styles, requests_batch)
             current_index += len(clean_text)
 
+            # Insert an extra newline to keep cursor < segmentEnd for next operations
+            requests_batch.append({
+                "insertText": {"location": {"index": current_index}, "text": "\n"}
+            })
+            current_index += 1
+
         # 3) Headings
         handled_heading = False
         for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
