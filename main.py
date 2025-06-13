@@ -237,7 +237,8 @@ def convert_markdown_to_docs_format(text):
         # Helper to insert cleaned text and apply inline styles
         def _insert_paragraph(raw_text: str, paragraph_style: str | None = None, bullet: bool = False, nesting_level: int = 0):
             nonlocal current_index, requests_batch
-            clean_text = re.sub(r"\*+", "", raw_text) + "\n"
+            tab_prefix = "\t" * nesting_level if bullet else ""
+            clean_text = tab_prefix + re.sub(r"\*+", "", raw_text) + "\n"
             # Insert the clean text first
             requests_batch.append({
                 "insertText": {
@@ -259,7 +260,6 @@ def convert_markdown_to_docs_format(text):
                 })
             # Apply bullet preset if requested
             if bullet:
-                # Create the bullet itself (Docs auto-assigns glyph based on indent)
                 requests_batch.append({
                     "createParagraphBullets": {
                         "range": {
@@ -269,30 +269,9 @@ def convert_markdown_to_docs_format(text):
                         "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
                     }
                 })
-
-                # Apply visual indent for sub-levels via paragraph style.
-                if nesting_level > 0:
-                    requests_batch.append({
-                        "updateParagraphStyle": {
-                            "range": {
-                                "startIndex": current_index,
-                                "endIndex": current_index + len(clean_text) - 1,
-                            },
-                            "paragraphStyle": {
-                                "indentStart": {
-                                    "magnitude": (nesting_level + 1) * 18,  # push bullet + text right
-                                    "unit": "PT",
-                                },
-                                "indentFirstLine": {
-                                    "magnitude": -18,  # keep glyph margin
-                                    "unit": "PT",
-                                },
-                            },
-                            "fields": "indentStart,indentFirstLine",
-                        }
-                    })
             # Apply bold / italic styling based on the *original* raw text.
-            _apply_inline_styles(raw_text + "\n", current_index, requests_batch)
+            base_for_styles = current_index + len(tab_prefix)
+            _apply_inline_styles(raw_text + "\n", base_for_styles, requests_batch)
             current_index += len(clean_text)
 
         # 3) Headings
