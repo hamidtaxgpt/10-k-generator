@@ -298,7 +298,33 @@ def convert_markdown_to_docs_format(text):
     return requests_batch
 
 
-def create_google_doc(report_text, job_id):
+def generate_title(report_text: str) -> str:
+    """Use a higher-capacity model to generate a concise document title."""
+    try:
+        resp = openai_client.chat.completions.create(
+            model="gpt-4o-mini",  # falls back to o1-mini if unavailable
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an expert copywriter generating short, professional report titles. Return only the title—no quotes, no punctuation before or after. Limit to 12 words."
+                },
+                {
+                    "role": "user",
+                    "content": f"Draft a title for the following tax-planning report:\n\n{report_text}\n\nTitle:"
+                }
+            ],
+            max_completion_tokens=32,
+            temperature=0.4,
+        )
+        title_raw = resp.choices[0].message.content.strip()
+        # Remove leading/trailing quotes or punctuation
+        return title_raw.strip('"\n').strip()
+    except Exception as e:
+        logger.warning(f"Title generation failed: {e}")
+        return "Tax Planning Report"
+
+
+def create_google_doc(report_text, job_id, title):
     """Create & share a Google Doc, return its public URL."""
     creds = get_google_credentials()
     if not creds:
@@ -307,27 +333,21 @@ def create_google_doc(report_text, job_id):
     docs = build("docs", "v1", credentials=creds)
     drive = build("drive", "v3", credentials=creds)
 
-    # Create the document
+    # Create the document with the generated title
     doc = docs.documents().create(body={
-        "title": f"Tax Report - {job_id}"
+        "title": title
     }).execute()
     doc_id = doc["documentId"]
 
-    # Batch-update with our formatting requests
-    requests_batch = convert_markdown_to_docs_format(report_text)
+    # Prepend the title as an H1 in the body then the actual report
+    full_markdown = f"# {title}\n\n" + report_text
+    requests_batch = convert_markdown_to_docs_format(full_markdown)
     if requests_batch:
-        docs.documents().batchUpdate(documentId=doc_id,
-                                     body={
-                                         "requests": requests_batch
-                                     }).execute()
+        docs.documents().batchUpdate(documentId=doc_id, body={"requests": requests_batch}).execute()
 
     # Make it publicly viewable
     try:
-        drive.permissions().create(fileId=doc_id,
-                                   body={
-                                       "role": "reader",
-                                       "type": "anyone"
-                                   }).execute()
+        drive.permissions().create(fileId=doc_id, body={"role": "reader", "type": "anyone"}).execute()
     except Exception as e:
         logger.warning(f"Couldn't set public permissions: {e}")
 
@@ -413,7 +433,8 @@ SEC Filing Content:
         answer = res.choices[0].message.content
         sources = re.findall(r"https?://\S+", answer)
 
-        doc_url = create_google_doc(answer, job_id)
+        title = generate_title(answer)
+        doc_url = create_google_doc(answer, job_id, title)
         save_job_status(
             job_id, {
                 "status": "done",
