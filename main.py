@@ -259,6 +259,7 @@ def convert_markdown_to_docs_format(text):
                 })
             # Apply bullet preset if requested
             if bullet:
+                # Create the bullet itself (Docs auto-assigns glyph based on indent)
                 requests_batch.append({
                     "createParagraphBullets": {
                         "range": {
@@ -266,9 +267,26 @@ def convert_markdown_to_docs_format(text):
                             "endIndex": current_index + len(clean_text) - 1,
                         },
                         "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
-                        "nestingLevel": nesting_level,
                     }
                 })
+
+                # Apply visual indent for sub-levels via paragraph style.
+                if nesting_level > 0:
+                    requests_batch.append({
+                        "updateParagraphStyle": {
+                            "range": {
+                                "startIndex": current_index,
+                                "endIndex": current_index + len(clean_text) - 1,
+                            },
+                            "paragraphStyle": {
+                                "indentStart": {
+                                    "magnitude": nesting_level * 18,  # 18pt per level (~0.25")
+                                    "unit": "PT",
+                                }
+                            },
+                            "fields": "indentStart",
+                        }
+                    })
             # Apply bold / italic styling based on the *original* raw text.
             _apply_inline_styles(raw_text + "\n", current_index, requests_batch)
             current_index += len(clean_text)
