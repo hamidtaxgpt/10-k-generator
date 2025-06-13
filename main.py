@@ -383,9 +383,8 @@ def create_google_doc(report_text, job_id, title):
     }).execute()
     doc_id = doc["documentId"]
 
-    # Prepend the title as an H1 in the body then the actual report
-    full_markdown = f"# {title}\n\n" + report_text
-    requests_batch = convert_markdown_to_docs_format(full_markdown)
+    # Use the report text directly; the LLM already includes a title/heading
+    requests_batch = convert_markdown_to_docs_format(report_text)
     if requests_batch:
         docs.documents().batchUpdate(documentId=doc_id, body={"requests": requests_batch}).execute()
 
