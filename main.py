@@ -13,10 +13,20 @@ from openai import OpenAI
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
-load_dotenv()
+try:
+    from dotenv import load_dotenv  # type: ignore
+    load_dotenv()
+except Exception:
+    # Fallback minimal loader so missing python-dotenv won't crash production.
+    from pathlib import Path
+    env_path = Path(".env")
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip())
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)

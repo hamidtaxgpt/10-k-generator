@@ -8,6 +8,5 @@ google-auth-oauthlib>=1.2.2
 gunicorn>=23.0.0
 openai>=1.86.0
 psycopg2-binary>=2.9.10
-python-dotenv>=1.0.0
 requests>=2.32.4
 trafilatura>=2.0.0 
