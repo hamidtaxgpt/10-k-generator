@@ -367,8 +367,42 @@ def analyze_with_openai_async(job_id, filing_text):
         filing_text = filing_text[:100_000] + "\n\n[Truncated]"
 
     prompt = (
-        "You are a senior corporate tax advisor... [rest of your prompt here]\n\n"
-        f"SEC Filing Content:\n{filing_text}")
+        """You are a senior corporate tax advisor analyzing the full 10-K filing for a public U.S. company. Your task is to produce a structured tax planning report for the company's executive tax team.
+
+Use the language of the filing when appropriate. Anchor your insights in specific phrases, footnotes, or financial disclosures from the document.
+
+Your report must include the following sections with headings:
+
+1. Tax Savings Opportunities
+    - Highlight deductions or credits mentioned in the filing.
+    - Identify areas where tax treatments (e.g., depreciation, capitalization, NOLs) are significant.
+    - Use estimates where appropriate and include numerical tax impact where you can.
+
+2. Underutilized Tax Credits
+    - Identify whether credits like R&D, 179D, WOTC, AMT, or foreign tax credits are used.
+    - Call out credits that are *not mentioned* in the filing but could apply based on business model.
+    - Provide implementation recommendations and potential tax value ranges.
+
+3. Strategies to Reduce Effective Tax Rate (ETR)
+    - Recommend legal structuring, timing, or planning opportunities.
+    - Show how changes might impact the ETR with rough % estimates.
+    - Address IRC limitations like 163(j) and 382 if relevant.
+
+4. Peer Comparison & Benchmarking
+    - Compare the company's tax position with 2–3 peers (if peer names not available, simulate).
+    - Note practices others use (e.g., IP migration, aggressive credit use, entity structuring).
+    - Include a table if possible for revenue/ETR comparison.
+
+Important Style Instructions:
+- Use bullet points for clarity.
+- Quantify tax opportunities and ETR impact wherever possible.
+- Use professional, data-driven language.
+- Cite the 10-K using section names, table titles, or footnote numbers when making claims.
+
+Close the report with a summary and 3 high-priority next steps for the tax team.
+
+SEC Filing Content:
+""" + filing_text)
     try:
         res = openai_client.chat.completions.create(model="o1-mini",
                                                     messages=[{
