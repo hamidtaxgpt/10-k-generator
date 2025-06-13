@@ -280,11 +280,15 @@ def convert_markdown_to_docs_format(text):
                             },
                             "paragraphStyle": {
                                 "indentStart": {
-                                    "magnitude": nesting_level * 18,  # 18pt per level (~0.25")
+                                    "magnitude": (nesting_level + 1) * 18,  # push bullet + text right
                                     "unit": "PT",
-                                }
+                                },
+                                "indentFirstLine": {
+                                    "magnitude": -18,  # keep glyph margin
+                                    "unit": "PT",
+                                },
                             },
-                            "fields": "indentStart",
+                            "fields": "indentStart,indentFirstLine",
                         }
                     })
             # Apply bold / italic styling based on the *original* raw text.
