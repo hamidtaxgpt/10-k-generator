@@ -290,14 +290,11 @@ def create_google_doc(report_text: str, job_id: str, title: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_url(url: str) -> str:
-    # Use a realistic browser UA because www.sec.gov aggressively blocks
-    # non-browser clients. Add common headers and a fallback retry switching the
-    # URL from *.htm to *.txt (EDGAR also serves plain-text versions).
+    ua_email = os.getenv("USER_AGENT_EMAIL", "support@taxgpt.com")
     headers = {
+        # SEC guidelines: UA should include contact info. We mimic a browser + mailto.
         "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
+            f"Mozilla/5.0 (compatible; TaxGPTSecAnalyzer/1.0; +https://app.taxgpt.com; {ua_email})"
         ),
         "Accept": (
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
@@ -309,11 +306,21 @@ def extract_text_from_url(url: str) -> str:
     try:
         logger.debug("Downloading %s", url)
         resp = requests.get(url, headers=headers, timeout=30)
-        # If our first attempt is blocked, try the .txt filing variant once.
-        if resp.status_code == 403 and url.lower().endswith(".htm"):
-            alt_url = re.sub(r"\.htm[l]?$", ".txt", url, flags=re.IGNORECASE)
-            logger.debug("Primary download 403 – retrying as text: %s", alt_url)
-            resp = requests.get(alt_url, headers=headers, timeout=30)
+        # 403? try alternative URLs once each
+        if resp.status_code == 403:
+            alt_attempts = []
+            # 1) append ?download=1 (SEC allows manual download links)
+            alt_attempts.append(url + ("&download=1" if "?" in url else "?download=1"))
+            # 2) switch to plain-text version if original looked like HTML
+            if url.lower().endswith((".htm", ".html")):
+                alt_attempts.append(re.sub(r"\.html?$", ".txt", url, flags=re.IGNORECASE))
+            for alt_url in alt_attempts:
+                logger.debug("403 – retrying with alt URL: %s", alt_url)
+                time.sleep(1)
+                alt_resp = requests.get(alt_url, headers=headers, timeout=30)
+                if alt_resp.status_code < 400:
+                    resp = alt_resp
+                    break
         resp.raise_for_status()
         text = trafilatura.extract(resp.text)
         if text and len(text) > 100:
