@@ -11,6 +11,13 @@ from urllib.parse import urlparse
 from openai import OpenAI
 import json
 from textwrap import wrap
+from utils import (
+    save_job_status,
+    load_job_status,
+    generate_title,
+    create_google_doc,
+    extract_text_from_url,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -79,34 +86,6 @@ def compress_with_openai(full_text: str) -> dict:
             logger.warning(f"Compression chunk failed: {e}")
     merged["creditsMentioned"] = list(merged["creditsMentioned"])
     return merged
-
-def extract_text_from_url(url):
-    """
-    Extract clean text content from a URL using trafilatura.
-    This provides better text extraction than manual HTML parsing.
-    """
-    try:
-        logger.debug(f"Fetching content from URL: {url}")
-        
-        # Set proper headers for SEC.gov requests
-        headers = {
-            'User-Agent': 'hamid@taxgpt.com'
-        }
-        
-        downloaded = trafilatura.fetch_url(url, headers=headers)
-        if not downloaded:
-            raise Exception("Failed to download content from URL")
-        
-        text = trafilatura.extract(downloaded)
-        if not text:
-            raise Exception("Failed to extract text from downloaded content")
-        
-        logger.debug(f"Successfully extracted {len(text)} characters of text")
-        return text
-        
-    except Exception as e:
-        logger.error(f"Error extracting text from URL {url}: {str(e)}")
-        raise Exception(f"Text extraction failed: {str(e)}")
 
 def analyze_with_openai_async(analysis_id, filing_text):
     """
