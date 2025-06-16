@@ -9,6 +9,8 @@ import requests
 import trafilatura
 from urllib.parse import urlparse
 from openai import OpenAI
+import json
+from textwrap import wrap
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -23,6 +25,60 @@ openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # Global dictionary to store analysis results
 analysis_results = {}
+
+COMPRESS_CHUNK_SIZE = 80_000          # chars; safe for o1-mini
+COMPRESS_SCHEMA = """
+Return ONLY JSON with this exact schema:
+{
+  "company":                string,
+  "fiscalYearEnd":          string | null,
+  "keyNumbers":             object,      // any numeric figure you find, keys lower-snake
+  "creditsMentioned":       string[],    // e.g., ["R&D", "ITC"]
+  "segmentBreakdown": [
+      { "name": string, "revenue": number | null, "etr": number | null }
+  ],
+  "verbatimExtracts": [
+      { "label": string, "text": string }
+  ]
+}
+If a value is missing write null. Do NOT use placeholders like $XX.
+"""
+
+def _compress_chunk(chunk: str) -> dict:
+    prompt = (
+        "You are an expert SEC-filing parser.\n"
+        f"{COMPRESS_SCHEMA}\n\nSEC excerpt:\n```\n{chunk}\n```"
+    )
+    resp = openai_client.chat.completions.create(
+        model="o1-mini",
+        messages=[{"role": "user", "content": prompt}],
+        max_completion_tokens=4096,
+        temperature=0.1,
+    )
+    return json.loads(resp.choices[0].message.content)
+
+def compress_with_openai(full_text: str) -> dict:
+    merged = {
+        "company": None,
+        "fiscalYearEnd": None,
+        "keyNumbers": {},
+        "creditsMentioned": set(),
+        "segmentBreakdown": [],
+        "verbatimExtracts": [],
+    }
+    for chunk in wrap(full_text, COMPRESS_CHUNK_SIZE):
+        try:
+            part = _compress_chunk(chunk)
+            merged["company"]          = merged["company"] or part.get("company")
+            merged["fiscalYearEnd"]    = merged["fiscalYearEnd"] or part.get("fiscalYearEnd")
+            merged["keyNumbers"].update(part.get("keyNumbers", {}))
+            merged["creditsMentioned"].update(part.get("creditsMentioned", []))
+            merged["segmentBreakdown"].extend(part.get("segmentBreakdown", []))
+            merged["verbatimExtracts"].extend(part.get("verbatimExtracts", []))
+        except Exception as e:
+            logger.warning(f"Compression chunk failed: {e}")
+    merged["creditsMentioned"] = list(merged["creditsMentioned"])
+    return merged
 
 def extract_text_from_url(url):
     """
@@ -154,30 +210,92 @@ Provide a detailed, professional analysis with specific recommendations and quan
             "sources": []
         }
 
-def create_analysis_job(text):
-    """
-    Create analysis job and start OpenAI processing, return job_id for async processing.
-    """
+TAXGPT_HEADERS = {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "Origin": "https://app.taxgpt.com",
+    "Referer": "https://app.taxgpt.com/",
+    "Authorization": f"Bearer {os.environ.get('TAXGPT_API_KEY', '')}"
+}
+TAXGPT_CHAT_URL   = "https://api.taxgpt.com/api/chats/"
+TAXGPT_PROMPT_URL = "https://api.taxgpt.com/api/chats/{chat_id}/prompts/"
+
+TAXGPT_MAIN_PROMPT = """
+You are a professional tax analyst specializing in corporate tax strategy and SEC filing analysis.
+
+Please structure your analysis with the following sections:
+
+## 1. Tax Savings Opportunities
+- Available tax credits and incentives not fully utilized
+- Potential deductions that could be maximized
+- Strategic timing opportunities for tax benefits
+
+## 2. Underutilized Tax Credits
+- Research & Development credits
+- Foreign tax credits
+- Alternative minimum tax credits
+- Other applicable credits mentioned or implied in the filing
+
+## 3. Effective Tax Rate (ETR) Reduction Strategies
+- Geographic tax optimization
+- Transfer pricing opportunities
+- Corporate structure improvements
+- Timing strategies for recognition
+
+## 4. Peer Comparison and Benchmarking
+- Industry average effective tax rates
+- Similar-sized companies in the same sector
+- Best practices observed in comparable filings
+
+Please cite specific data points from the filing and provide actionable recommendations with estimated tax impact where possible.
+
+Use ONLY the JSON data provided below. If a number is null, write "N/A (not disclosed)" and do not invent numbers.
+"""
+
+def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
+    save_job_status(job_id, {"status": "processing", "answer": "", "sources": [], "doc_url": None})
     try:
-        # Generate unique job ID
-        job_id = str(uuid.uuid4())
-        logger.debug(f"Creating analysis job with ID: {job_id}")
-        
-        # Start background analysis
-        logger.debug(f"Starting background OpenAI analysis")
-        analysis_thread = threading.Thread(
-            target=analyze_with_openai_async,
-            args=(job_id, text)
-        )
-        analysis_thread.daemon = True
-        analysis_thread.start()
-        logger.debug(f"Background thread started - returning job ID")
-        
-        return job_id
-        
+        # 1 create chat
+        chat_id = requests.post(TAXGPT_CHAT_URL, headers=TAXGPT_HEADERS,
+                                json={"type": "professional"}, timeout=30).json()["id"]
+
+        # 2 send prompt
+        full_prompt = TAXGPT_MAIN_PROMPT + "\n\nJSON DATA:\n" + json.dumps(compressed_json, indent=2)
+        requests.post(TAXGPT_PROMPT_URL.format(chat_id=chat_id),
+                      headers=TAXGPT_HEADERS, json={"prompt": full_prompt}, timeout=30)
+
+        # 3 wait & poll
+        time.sleep(45)
+        hist = requests.get(TAXGPT_PROMPT_URL.format(chat_id=chat_id),
+                            headers=TAXGPT_HEADERS, timeout=30).json()
+        answer = hist[-1].get("prompt_answer", "") if hist else ""
+        links = re.findall(r"https?://\\S+", answer)
+
+        # 4 google doc
+        title = generate_title(answer)
+        doc_url = create_google_doc(answer, job_id, title)
+        save_job_status(job_id, {"status": "done", "answer": answer,
+                                 "sources": links, "doc_url": doc_url})
     except Exception as e:
-        logger.error(f"Error creating analysis job: {str(e)}")
-        raise Exception(f"Failed to create analysis job: {str(e)}")
+        save_job_status(job_id, {"status": "error", "answer": str(e),
+                                 "sources": [], "doc_url": None})
+        logger.error(f"TaxGPT error for {job_id}: {e}")
+
+def create_analysis_job(text: str):
+    job_id = str(uuid.uuid4())
+    # compress filing first
+    compressed = compress_with_openai(text) if os.getenv("USE_TAXGPT", "false").lower() == "true" else None
+    save_job_status(job_id, {"status": "processing", "answer": "In progress…",
+                             "sources": [], "doc_url": None})
+    if os.getenv("USE_TAXGPT", "false").lower() == "true":
+        thread = threading.Thread(target=analyze_with_taxgpt_async,
+                                  args=(job_id, compressed))
+    else:
+        thread = threading.Thread(target=analyze_with_openai_async,
+                                  args=(job_id, text))
+    thread.daemon = True
+    thread.start()
+    return job_id
 
 def get_analysis_status(job_id):
     """
