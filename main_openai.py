@@ -267,11 +267,14 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
 
 def create_analysis_job(text: str):
     job_id = str(uuid.uuid4())
+    # Log which pipeline will run (OpenAI vs TaxGPT) for easier debugging
+    use_taxgpt = os.getenv("USE_TAXGPT", "false").lower() == "true"
+    logger.info("USE_TAXGPT=%s – %s pipeline selected", os.getenv("USE_TAXGPT"), "TaxGPT" if use_taxgpt else "OpenAI")
     # compress filing first
-    compressed = compress_with_openai(text) if os.getenv("USE_TAXGPT", "false").lower() == "true" else None
+    compressed = compress_with_openai(text) if use_taxgpt else None
     save_job_status(job_id, {"status": "processing", "answer": "In progress…",
                              "sources": [], "doc_url": None})
-    if os.getenv("USE_TAXGPT", "false").lower() == "true":
+    if use_taxgpt:
         thread = threading.Thread(target=analyze_with_taxgpt_async,
                                   args=(job_id, compressed))
     else:
