@@ -290,10 +290,30 @@ def create_google_doc(report_text: str, job_id: str, title: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 def extract_text_from_url(url: str) -> str:
-    headers = {"User-Agent": "taxgpt-sec-analyzer/1.0"}
+    # Use a realistic browser UA because www.sec.gov aggressively blocks
+    # non-browser clients. Add common headers and a fallback retry switching the
+    # URL from *.htm to *.txt (EDGAR also serves plain-text versions).
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        ),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": "https://www.sec.gov/",
+        "Connection": "keep-alive",
+    }
     try:
         logger.debug("Downloading %s", url)
         resp = requests.get(url, headers=headers, timeout=30)
+        # If our first attempt is blocked, try the .txt filing variant once.
+        if resp.status_code == 403 and url.lower().endswith(".htm"):
+            alt_url = re.sub(r"\.htm[l]?$", ".txt", url, flags=re.IGNORECASE)
+            logger.debug("Primary download 403 – retrying as text: %s", alt_url)
+            resp = requests.get(alt_url, headers=headers, timeout=30)
         resp.raise_for_status()
         text = trafilatura.extract(resp.text)
         if text and len(text) > 100:
