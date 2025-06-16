@@ -264,18 +264,32 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
                                  "sources": [], "doc_url": None})
         logger.error(f"TaxGPT error for {job_id}: {e}")
 
+# ---------------------------------------------------------------------------
+# Wrapper to run compression in the worker thread instead of the request
+# ---------------------------------------------------------------------------
+
+def _compress_and_taxgpt_async(job_id: str, raw_text: str):
+    """Background helper: compress SEC filing with o1-mini then send to TaxGPT."""
+    try:
+        logger.debug("Job %s – starting compression for TaxGPT", job_id)
+        compressed = compress_with_openai(raw_text)
+        logger.debug("Job %s – compression done (%d keys)", job_id, len(compressed))
+        analyze_with_taxgpt_async(job_id, compressed)
+    except Exception as exc:
+        logger.error("Job %s – compression/TaxGPT pipeline failed: %s", job_id, exc)
+        save_job_status(job_id, {"status": "error", "answer": str(exc), "sources": [], "doc_url": None})
+
 def create_analysis_job(text: str):
     job_id = str(uuid.uuid4())
     # Log which pipeline will run (OpenAI vs TaxGPT) for easier debugging
     use_taxgpt = os.getenv("USE_TAXGPT", "false").lower() == "true"
     logger.info("USE_TAXGPT=%s – %s pipeline selected", os.getenv("USE_TAXGPT"), "TaxGPT" if use_taxgpt else "OpenAI")
     # compress filing first
-    compressed = compress_with_openai(text) if use_taxgpt else None
     save_job_status(job_id, {"status": "processing", "answer": "In progress…",
                              "sources": [], "doc_url": None})
     if use_taxgpt:
-        thread = threading.Thread(target=analyze_with_taxgpt_async,
-                                  args=(job_id, compressed))
+        thread = threading.Thread(target=_compress_and_taxgpt_async,
+                                  args=(job_id, text))
     else:
         thread = threading.Thread(target=analyze_with_openai_async,
                                   args=(job_id, text))
