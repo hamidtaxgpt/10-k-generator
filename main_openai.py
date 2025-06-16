@@ -33,7 +33,12 @@ openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 # Global dictionary to store analysis results
 analysis_results = {}
 
-COMPRESS_CHUNK_SIZE = 80_000          # chars; safe for o1-mini
+# Use larger chunks to cut down the number of OpenAI calls. 250 k characters ≈
+# ~60 k tokens – still well within the o1-mini context window.
+COMPRESS_CHUNK_SIZE = 250_000  # chars
+# Hard ceiling on how many chunks we process, regardless of filing length.
+MAX_COMPRESS_CALLS = 4
+
 COMPRESS_SCHEMA = """
 Return ONLY JSON with this exact schema:
 {
@@ -72,7 +77,10 @@ def compress_with_openai(full_text: str) -> dict:
         "segmentBreakdown": [],
         "verbatimExtracts": [],
     }
-    for chunk in wrap(full_text, COMPRESS_CHUNK_SIZE):
+    for i, chunk in enumerate(wrap(full_text, COMPRESS_CHUNK_SIZE)):
+        if i >= MAX_COMPRESS_CALLS:
+            logger.info("compress_with_openai: stopped after %d chunks (limit)", MAX_COMPRESS_CALLS)
+            break
         try:
             part = _compress_chunk(chunk)
             merged["company"]          = merged["company"] or part.get("company")
