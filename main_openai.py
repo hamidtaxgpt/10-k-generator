@@ -167,7 +167,10 @@ Please cite specific data points from the filing and provide actionable recommen
 SEC Filing Content:
 {filing_text}
 
-Provide a detailed, professional analysis with specific recommendations and quantified benefits where applicable."""
+Provide a detailed, professional analysis with specific recommendations and quantified benefits where applicable.
+
+Do NOT include any disclaimer or note about excerpted data or model limitations.
+"""
 
         logger.debug(f"Sending analysis request to OpenAI o3-mini")
         
@@ -250,6 +253,8 @@ Please structure your analysis with the following sections:
 Please cite specific data points from the filing and provide actionable recommendations with estimated tax impact where possible.
 
 Use ONLY the JSON data provided below. If a number is null, write "N/A (not disclosed)" and do not invent numbers.
+
+Do NOT include any disclaimer or note about excerpted data or model limitations.
 """
 
 def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
