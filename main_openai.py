@@ -59,8 +59,7 @@ def _compress_chunk(chunk: str) -> dict:
     resp = openai_client.chat.completions.create(
         model="o1-mini",
         messages=[{"role": "user", "content": prompt}],
-        max_completion_tokens=4096,
-        temperature=0.1,
+        max_tokens=4096,
     )
     return json.loads(resp.choices[0].message.content)
 
