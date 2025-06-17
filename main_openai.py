@@ -35,9 +35,9 @@ analysis_results = {}
 
 # Use larger chunks to cut down the number of OpenAI calls. 250 k characters ≈
 # ~60 k tokens – still well within the o1-mini context window.
-COMPRESS_CHUNK_SIZE = 250_000  # chars
+COMPRESS_CHUNK_SIZE = 120_000  # chars
 # Hard ceiling on how many chunks we process, regardless of filing length.
-MAX_COMPRESS_CALLS = 4
+MAX_COMPRESS_CALLS = 6
 
 COMPRESS_SCHEMA = """
 Return ONLY JSON with this exact schema:
@@ -66,7 +66,12 @@ def _compress_chunk(chunk: str) -> dict:
         messages=[{"role": "user", "content": prompt}],
         max_completion_tokens=4096,
     )
-    return json.loads(resp.choices[0].message.content)
+    content = resp.choices[0].message.content
+    if not content.strip():
+        logger.error("o1-mini returned empty content for chunk %d (size %d chars)",
+                     i, len(chunk))
+    else:
+        return json.loads(content)
 
 def compress_with_openai(full_text: str) -> dict:
     merged = {
