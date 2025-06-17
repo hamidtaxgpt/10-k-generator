@@ -66,14 +66,12 @@ def _compress_chunk(chunk: str) -> dict:
         messages=[{"role": "user", "content": prompt}],
         max_completion_tokens=4096,
     )
-    content = resp.choices[0].message.content
-    if not content.strip():
-        logger.error("o1-mini returned empty content (%d chars)", len(content))
-    else:
-        # temp dump for inspection
-        with open(f"/tmp/{uuid.uuid4()}_raw.txt", "w") as fh:
-            fh.write(content[:2000])          # first 2 kB is enough to inspect
-    return json.loads(content)
+    raw = resp.choices[0].message.content or ""
+    # Remove ```json ... ``` or ``` fences if present
+    if raw.lstrip().startswith("```"):
+        import re
+        raw = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", raw.strip(), flags=re.S)
+    return json.loads(raw)
 
 def compress_with_openai(full_text: str) -> dict:
     merged = {
