@@ -179,14 +179,18 @@ Provide a detailed, professional analysis with specific recommendations and quan
 Do NOT include any disclaimer or note about excerpted data or model limitations.
 
 # ------------------------------------------------------------------
-# Quantification & data-citation rules
+# Quantification and data referencing rules
 # ------------------------------------------------------------------
-Quantification rules
-• Each of Sections 1–3 must cite **at least two numeric figures** taken from the JSON (e.g., keyNumbers.revenue_2024_total_millions_usd).  
-• Show units – use **$ m** for millions USD, **$ bn** for billions USD, and **%** for percentages.  
-• Never invent numbers; if a value is null write "N/A".  
-• Avoid ranges; give a single figure or midpoint.  
+Quantification and data referencing rules
+• For every number or fact, reference the exact JSON key (e.g., `keyNumbers.backlog_usd_million_dec_31_2024`).
+• If a value is missing or null, write "N/A" instead of a number.
+• Each of Sections 1–3 must cite **at least two numeric figures** taken from the JSON (e.g., keyNumbers.revenue_2024_total_millions_usd).
+• Show units – use **$ m** for millions USD, **$ bn** for billions USD, and **%** for percentages.
+• Never invent numbers; if a value is null write "N/A".
+• Avoid ranges; give a single figure or midpoint.
 • Bold the figures when they appear inside prose for quick scanning.
+• When referencing qualitative statements, cite the `verbatimExtracts.label` (e.g., "see verbatimExtracts.Backlog").
+• When discussing business segments, use the `segmentBreakdown` array and show a table with columns: Segment | Revenue (USD m) | ETR (if available). Use the JSON keys for each value.
 
 Linking rules
 • When citing a source, embed the URL once using Markdown format with concise descriptive text (e.g., [IRS R&D credit guide]).  
