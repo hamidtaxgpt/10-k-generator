@@ -333,7 +333,9 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
 
         # 4 google doc
         title = generate_title(answer)
-        doc_url = create_google_doc(answer, job_id, title)
+        import re
+        cleaned_answer = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", answer.strip(), flags=re.M)
+        doc_url = create_google_doc(cleaned_answer, job_id, title)
         save_job_status(job_id, {"status": "done", "answer": answer,
                                  "sources": [], "doc_url": doc_url})
     except Exception as e:
