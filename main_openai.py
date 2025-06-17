@@ -188,6 +188,10 @@ Quantification rules
 • Avoid ranges; give a single figure or midpoint.  
 • Bold the figures when they appear inside prose for quick scanning.
 
+Linking rules
+• When citing a source, embed the URL once using Markdown format with concise descriptive text (e.g., [IRS R&D credit guide]).  
+• Do **not** repeat the bare URL in parentheses or elsewhere; include each link only once.
+
 # ------------------------------------------------------------------
 # Key metrics table
 # ------------------------------------------------------------------
