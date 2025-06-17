@@ -123,37 +123,47 @@ def analyze_with_openai_async(analysis_id, filing_text):
             filing_text = filing_text[:max_content_length] + "\n\n[Content truncated for analysis]"
         
         # Construct comprehensive tax analysis prompt
-        prompt = f"""You are a professional tax analyst specializing in corporate tax strategy and SEC filing analysis. Analyze the following SEC filing excerpt and provide a comprehensive tax analysis report.
+        prompt = f"""You are a professional tax analyst specializing in corporate tax strategy and SEC filing analysis.
 
-Please structure your analysis with the following sections:
+STRICT CONTENT RULES (read carefully):
+1. You may use ONLY the financial metrics, text extracts, and other facts that appear in the JSON payload below.  
+2. DO NOT introduce generic IRS publications, statutes, or web links that are not present in the JSON.  
+3. If a figure is null, write "N/A (not disclosed)"—never guess.
+
+Start immediately with the first heading—no introductory sentences.
+
+Structure your analysis with the following sections exactly as titled:
 
 ## 1. Tax Savings Opportunities
-Identify specific tax optimization strategies based on the filing data, including:
 - Available tax credits and incentives not fully utilized
 - Potential deductions that could be maximized
 - Strategic timing opportunities for tax benefits
 
 ## 2. Underutilized Tax Credits
-Analyze and highlight:
 - Research & Development credits
 - Foreign tax credits
 - Alternative minimum tax credits
 - Other applicable credits mentioned or implied in the filing
 
 ## 3. Effective Tax Rate (ETR) Reduction Strategies
-Provide recommendations for:
 - Geographic tax optimization
 - Transfer pricing opportunities
 - Corporate structure improvements
 - Timing strategies for recognition
 
 ## 4. Peer Comparison and Benchmarking
-Compare the company's tax position with:
 - Industry average effective tax rates
 - Similar-sized companies in the same sector
 - Best practices observed in comparable filings
 
-Please cite specific data points from the filing and provide actionable recommendations with estimated tax impact where possible.
+Provide actionable recommendations with estimated tax impact where possible, citing the JSON keys/labels you are using (e.g., "keyNumbers.research_and_development") so the reader can trace every claim to the provided data.
+
+Do NOT include:
+• Introductory paragraphs or summaries before Section 1.
+• A concluding paragraph or disclaimer after the Actionable Recommendations.
+• Generic boilerplate (e.g., "Based on the indexed information").
+
+End the report after the last recommendation.
 
 SEC Filing Content:
 {filing_text}
