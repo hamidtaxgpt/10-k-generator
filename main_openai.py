@@ -252,21 +252,39 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
 
         # 2 send prompt
         full_prompt = TAXGPT_MAIN_PROMPT + "\n\nJSON DATA:\n" + json.dumps(compressed_json, indent=2)
-        requests.post(TAXGPT_PROMPT_URL.format(chat_id=chat_id),
-                      headers=TAXGPT_HEADERS, json={"prompt": full_prompt}, timeout=30)
+        requests.post(
+            TAXGPT_PROMPT_URL.format(chat_id=chat_id),
+            headers=TAXGPT_HEADERS,
+            json={"prompt": full_prompt},
+            timeout=60,
+        )
 
-        # 3 wait & poll
-        time.sleep(45)
-        hist = requests.get(TAXGPT_PROMPT_URL.format(chat_id=chat_id),
-                            headers=TAXGPT_HEADERS, timeout=30).json()
-        answer = hist[-1].get("prompt_answer", "") if hist else ""
-        links = re.findall(r"https?://\\S+", answer)
+        # 3 poll every 15 s, up to 5 min total
+        answer = ""
+        for _ in range(20):
+            time.sleep(15)
+            try:
+                resp = requests.get(
+                    TAXGPT_PROMPT_URL.format(chat_id=chat_id),
+                    headers=TAXGPT_HEADERS,
+                    timeout=60,
+                )
+                resp.raise_for_status()
+                hist = resp.json()
+                if hist and hist[-1].get("prompt_answer"):
+                    answer = hist[-1]["prompt_answer"]
+                    break
+            except requests.RequestException as poll_exc:
+                logger.warning("TaxGPT poll error: %s", poll_exc)
+                continue  # keep polling
+        if not answer:
+            raise RuntimeError("TaxGPT did not return an answer within 5 minutes")
 
         # 4 google doc
         title = generate_title(answer)
         doc_url = create_google_doc(answer, job_id, title)
         save_job_status(job_id, {"status": "done", "answer": answer,
-                                 "sources": links, "doc_url": doc_url})
+                                 "sources": [], "doc_url": doc_url})
     except Exception as e:
         save_job_status(job_id, {"status": "error", "answer": str(e),
                                  "sources": [], "doc_url": None})
