@@ -163,6 +163,12 @@ Do NOT include:
 • A concluding paragraph or disclaimer after the Actionable Recommendations.
 • Generic boilerplate (e.g., "Based on the indexed information").
 
+For the final section titled "Actionable Recommendations":
+• Begin with a concise bulleted list – one bullet per action, 1–2 sentences each, highest-impact item first.  
+• Immediately after the bullets, insert a single Markdown table **without** code-fences, using these exact columns:  
+Priority | Action | Estimated Savings |  
+List the highest-impact item first.  Do not include any additional columns beyond these three.
+
 End the report after the last recommendation.
 
 SEC Filing Content:
