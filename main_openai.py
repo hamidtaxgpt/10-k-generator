@@ -329,14 +329,20 @@ def get_analysis_status(job_id):
     """
     global analysis_results
     
-    # Check if we have results
+    # Check in-memory results (OpenAI pipeline)
     if job_id in analysis_results:
         result = analysis_results[job_id]
-        logger.debug(f"Found result for job {job_id}: status={result['status']}")
+        logger.debug("Found in-memory result for job %s: %s", job_id, result["status"])
         return result
-    
-    # Job not found
-    logger.warning(f"Job {job_id} not found in results")
+
+    # Fallback to disk (TaxGPT pipeline)
+    file_result = load_job_status(job_id)
+    if file_result:
+        logger.debug("Loaded result for job %s from disk: %s", job_id, file_result["status"])
+        return file_result
+
+    # Not found anywhere
+    logger.warning("Job %s not found in memory or on disk", job_id)
     return {
         "status": "not_found",
         "answer": "Job ID not found. Please check the job ID or start a new analysis.",
