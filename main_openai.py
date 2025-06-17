@@ -212,7 +212,12 @@ TAXGPT_PROMPT_URL = "https://api.taxgpt.com/api/chats/{chat_id}/prompts/"
 TAXGPT_MAIN_PROMPT = """
 You are a professional tax analyst specializing in corporate tax strategy and SEC filing analysis.
 
-Please structure your analysis with the following sections:
+STRICT CONTENT RULES (read carefully):
+1. You may use ONLY the financial metrics, text extracts, and other facts that appear in the JSON payload below.  
+2. DO NOT introduce generic IRS publications, statutes, or web links that are not present in the JSON.  
+3. If a figure is null, write "N/A (not disclosed)"—never guess.
+
+Structure your analysis with the following sections:
 
 ## 1. Tax Savings Opportunities
 - Available tax credits and incentives not fully utilized
@@ -236,11 +241,9 @@ Please structure your analysis with the following sections:
 - Similar-sized companies in the same sector
 - Best practices observed in comparable filings
 
-Please cite specific data points from the filing and provide actionable recommendations with estimated tax impact where possible.
+Provide actionable recommendations with estimated tax impact where possible, citing the JSON keys/labels you are using (e.g., "keyNumbers.research_and_development") so the reader can trace every claim to the provided data.
 
-Use ONLY the JSON data provided below. If a number is null, write "N/A (not disclosed)" and do not invent numbers.
-
-Do NOT include any disclaimer or note about excerpted data or model limitations.
+Do NOT include any disclaimer or model-limitation note.
 """
 
 def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
@@ -300,6 +303,13 @@ def _compress_and_taxgpt_async(job_id: str, raw_text: str):
         logger.debug("Job %s – starting compression for TaxGPT", job_id)
         compressed = compress_with_openai(raw_text)
         logger.debug("Job %s – compression done (%d keys)", job_id, len(compressed))
+        # --- Dump compressed JSON for debugging/inspection
+        try:
+            with open(f"/tmp/{job_id}_compressed.json", "w") as fh:
+                json.dump(compressed, fh, indent=2)
+            logger.debug("Job %s – compressed JSON written to /tmp/%s_compressed.json", job_id, job_id)
+        except Exception as dump_exc:
+            logger.warning("Job %s – could not dump compressed JSON: %s", job_id, dump_exc)
         analyze_with_taxgpt_async(job_id, compressed)
     except Exception as exc:
         logger.error("Job %s – compression/TaxGPT pipeline failed: %s", job_id, exc)
