@@ -177,6 +177,25 @@ SEC Filing Content:
 Provide a detailed, professional analysis with specific recommendations and quantified benefits where applicable.
 
 Do NOT include any disclaimer or note about excerpted data or model limitations.
+
+# ------------------------------------------------------------------
+# Quantification & data-citation rules
+# ------------------------------------------------------------------
+Quantification rules
+• Each of Sections 1–3 must cite **at least two numeric figures** taken from the JSON (e.g., keyNumbers.revenue_2024_total_millions_usd).  
+• Show units – use **$ m** for millions USD, **$ bn** for billions USD, and **%** for percentages.  
+• Never invent numbers; if a value is null write "N/A".  
+• Avoid ranges; give a single figure or midpoint.  
+• Bold the figures when they appear inside prose for quick scanning.
+
+# ------------------------------------------------------------------
+# Key metrics table
+# ------------------------------------------------------------------
+Before Section 1, insert a Markdown table titled **"Key Metrics from Filing"** that lists every entry found in the `keyNumbers` object plus any other numeric figure you choose to reference.  Use this format (no code-fence):
+
+| Metric | Value | Source Label |
+
+---
 """
 
         logger.debug(f"Sending analysis request to OpenAI o3-mini")
