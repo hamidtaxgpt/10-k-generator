@@ -68,10 +68,12 @@ def _compress_chunk(chunk: str) -> dict:
     )
     content = resp.choices[0].message.content
     if not content.strip():
-        logger.error("o1-mini returned empty content for chunk %d (size %d chars)",
-                     i, len(chunk))
+        logger.error("o1-mini returned empty content (%d chars)", len(content))
     else:
-        return json.loads(content)
+        # temp dump for inspection
+        with open(f"/tmp/{uuid.uuid4()}_raw.txt", "w") as fh:
+            fh.write(content[:2000])          # first 2 kB is enough to inspect
+    return json.loads(content)
 
 def compress_with_openai(full_text: str) -> dict:
     merged = {
