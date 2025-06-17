@@ -256,7 +256,7 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
             TAXGPT_PROMPT_URL.format(chat_id=chat_id),
             headers=TAXGPT_HEADERS,
             json={"prompt": full_prompt},
-            timeout=60,
+            timeout=90,
         )
 
         # 3 poll every 15 s, up to 5 min total
