@@ -157,8 +157,57 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
     lines = text.split("\n")
     idx = 0
     current_index = 1
+
+    # Handle the title (first line) as bold
+    if lines and lines[0].strip():
+        title_text = lines[0].strip() + "\n"
+        requests_batch.append({
+            "insertText": {
+                "location": {"index": current_index},
+                "text": title_text
+            }
+        })
+        # Make title bold
+        requests_batch.append({
+            "updateTextStyle": {
+                "range": {
+                    "startIndex": current_index,
+                    "endIndex": current_index + len(title_text) - 1
+                },
+                "textStyle": {"bold": True},
+                "fields": "bold"
+            }
+        })
+        current_index += len(title_text)
+        idx += 1
+
     while idx < len(lines):
         line = lines[idx]
+        # --- Handle lines starting with # (but not ##, ###)
+        if line.strip().startswith("# "):
+            # Remove the # and leading/trailing whitespace
+            heading_text = line.strip()[2:].strip() + "\n"
+            requests_batch.append({
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": heading_text
+                }
+            })
+            # Make heading bold
+            requests_batch.append({
+                "updateTextStyle": {
+                    "range": {
+                        "startIndex": current_index,
+                        "endIndex": current_index + len(heading_text) - 1
+                    },
+                    "textStyle": {"bold": True},
+                    "fields": "bold"
+                }
+            })
+            current_index += len(heading_text)
+            idx += 1
+            continue
+
         # --- Table handling
         if line.strip().startswith("|") and "|" in line:
             tbl_lines: list[str] = []
@@ -191,12 +240,14 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
                 requests_batch.append({"insertText": {"location": {"index": current_index}, "text": "\n"}})
                 current_index += 1
             continue
+
         # --- Blank line
         if not line.strip():
             requests_batch.append({"insertText": {"location": {"index": current_index}, "text": "\n"}})
             current_index += 1
             idx += 1
             continue
+
         # --- Helper to insert paragraph
         def _insert(raw: str, style: str | None = None, bullet: bool = False):
             nonlocal current_index
@@ -219,9 +270,10 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
                 })
             _apply_inline_styles(raw + "\n", current_index, requests_batch)
             current_index += len(clean)
-        # Headings
+
+        # Handle other headings (##, ###)
         handled_heading = False
-        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
+        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2")]:
             if line.startswith(prefix):
                 _insert(line[len(prefix):].strip(), style)
                 idx += 1
@@ -229,14 +281,17 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
                 break
         if handled_heading:
             continue
+
         # Bullets
         if line.strip().startswith("- "):
             _insert(line.strip()[2:], bullet=True)
             idx += 1
             continue
+
         # Plain paragraph
         _insert(line)
         idx += 1
+
     return requests_batch
 
 
