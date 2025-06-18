@@ -298,16 +298,15 @@ Then immediately begin with Section 1 - no introduction needed.
 ## 5. Tax Savings Summary
 Present ONE table at the end with this EXACT format:
 
-| Strategy | Financial Impact | Expected Savings | Timeline |
-|----------|-----------------|------------------|----------|
-| [Clear strategy name] | [Current cost in $] | [Projected saving in $] | [S/M/L term] |
+| Strategy | Estimated Savings |
+|----------|-------------------|
+| [Clear strategy name] | [Projected saving in $] |
 
 Table Rules:
-- Include 4-6 highest-impact strategies
-- Every financial figure must be from the data
+- Include 4–6 highest-impact strategies
+- Every figure must be drawn directly from the data
 - Use consistent formatting ($ XXm or $ XXbn)
-- Timeline: Short (<6mo), Medium (6-12mo), Long (>12mo)
-- No placeholder values (TBD, N/A, etc.)
+- No placeholder values (Not disclosed, TBD, etc.)
 
 EXECUTIVE COMMUNICATION RULES:
 1. Write in clear, executive-level language
@@ -362,7 +361,7 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
         title = generate_title(answer)
         import re
         cleaned_answer = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", answer.strip(), flags=re.M)
-        doc_url = create_google_doc(cleaned_answer, job_id, title)
+        doc_url = create_google_doc(cleaned_answer, job_id, title, format_markdown=False)
         save_job_status(job_id, {"status": "done", "answer": answer,
                                  "sources": [], "doc_url": doc_url})
     except Exception as e:

@@ -318,7 +318,7 @@ def generate_title(report_text: str) -> str:
         return "Tax Planning Report"
 
 
-def create_google_doc(report_text: str, job_id: str, title: str) -> str | None:
+def create_google_doc(report_text: str, job_id: str, title: str, format_markdown: bool = True) -> str | None:
     creds = get_google_credentials()
     if not creds:
         return None
@@ -327,7 +327,18 @@ def create_google_doc(report_text: str, job_id: str, title: str) -> str | None:
         drive = build("drive", "v3", credentials=creds)
         doc = docs.documents().create(body={"title": title}).execute()
         doc_id = doc["documentId"]
-        batch = convert_markdown_to_docs_format(report_text)
+        if format_markdown:
+            batch = convert_markdown_to_docs_format(report_text)
+        else:
+            # Insert raw text without styling
+            batch = [
+                {
+                    "insertText": {
+                        "location": {"index": 1},
+                        "text": report_text
+                    }
+                }
+            ]
         if batch:
             docs.documents().batchUpdate(documentId=doc_id, body={"requests": batch}).execute()
         try:
