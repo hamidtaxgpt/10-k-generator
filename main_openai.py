@@ -265,7 +265,9 @@ STRICT CONTENT RULES (read carefully):
 2. DO NOT introduce generic IRS publications, statutes, or web links that are not present in the JSON.  
 3. If a figure is null, write "N/A (not disclosed)"—never guess.
 
-Structure your analysis with the following sections:
+Start immediately with the first heading—no introductory sentences.
+
+Structure your analysis with the following sections exactly as titled:
 
 ## 1. Tax Savings Opportunities
 - Available tax credits and incentives not fully utilized
@@ -289,7 +291,42 @@ Structure your analysis with the following sections:
 - Similar-sized companies in the same sector
 - Best practices observed in comparable filings
 
-Provide actionable recommendations with estimated tax impact where possible, citing the JSON keys/labels you are using (e.g., "keyNumbers.research_and_development") so the reader can trace every claim to the provided data.
+## 5. Estimated Tax Savings Summary
+Present a table with the following columns:
+| Strategy | Current Tax Impact | Potential Annual Savings | Implementation Timeline |
+Use ONLY figures from the filing (keyNumbers, segmentBreakdown) to calculate current impact.
+For each row:
+- Strategy: Name of tax saving opportunity
+- Current Tax Impact: Current cost/loss in $m or %
+- Potential Annual Savings: Estimated savings in $m
+- Implementation Timeline: Short-term (< 6mo), Medium (6-12mo), Long (> 12mo)
+
+Do NOT include:
+• Introductory paragraphs or summaries before Section 1
+• A concluding paragraph or disclaimer after Section 5
+• Generic boilerplate (e.g., "Based on the indexed information")
+
+# ------------------------------------------------------------------
+# Quantification and data referencing rules
+# ------------------------------------------------------------------
+• For every number or fact, reference the exact JSON key (e.g., `keyNumbers.backlog_usd_million_dec_31_2024`)
+• If a value is missing or null, write "N/A" instead of a number
+• Each of Sections 1–3 must cite **at least two numeric figures** taken from the JSON
+• Show units – use **$ m** for millions USD, **$ bn** for billions USD, and **%** for percentages
+• Never invent numbers; if a value is null write "N/A"
+• Avoid ranges; give a single figure or midpoint
+• Bold the figures when they appear inside prose for quick scanning
+• When referencing qualitative statements, cite the `verbatimExtracts.label`
+• When discussing business segments, use the `segmentBreakdown` array and show a table with columns: Segment | Revenue (USD m) | ETR (if available)
+
+# ------------------------------------------------------------------
+# Key metrics table
+# ------------------------------------------------------------------
+Before Section 1, insert a Markdown table titled **"Key Metrics from Filing"** that lists every entry found in the `keyNumbers` object plus any other numeric figure you choose to reference. Use this format:
+
+| Metric | Value | Source Label |
+
+---
 
 Do NOT include any disclaimer or model-limitation note.
 """
