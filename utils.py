@@ -273,7 +273,7 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
 
         # Handle other headings (##, ###)
         handled_heading = False
-        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2")]:
+        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
             if line.startswith(prefix):
                 _insert(line[len(prefix):].strip(), style)
                 idx += 1
