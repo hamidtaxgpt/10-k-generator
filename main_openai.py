@@ -33,9 +33,10 @@ openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 # Global dictionary to store analysis results
 analysis_results = {}
 
-# Use larger chunks to cut down the number of OpenAI calls. 250 k characters ≈
-# ~60 k tokens – still well within the o1-mini context window.
-COMPRESS_CHUNK_SIZE = 120_000  # chars
+# Split the filing into ~30 000-character chunks (~7 500 tokens). This keeps each
+# compression request safely inside the o1-mini context window and prevents
+# "maximum context length" errors.
+COMPRESS_CHUNK_SIZE = 30_000   # chars (~7.5k tokens)
 # Hard ceiling on how many chunks we process, regardless of filing length.
 MAX_COMPRESS_CALLS = 6
 
