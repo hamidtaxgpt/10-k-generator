@@ -246,6 +246,9 @@ Before Section 1, insert a Markdown table titled **"Key Metrics from Filing"** t
         
         analysis_result = response.choices[0].message.content
         
+        # Strip intro and conclusion for cleanliness
+        analysis_result = _sanitize_answer(analysis_result)
+        
         # Extract any URLs mentioned in the analysis as sources
         sources = re.findall(r"https?://\S+", analysis_result)
         
@@ -339,7 +342,7 @@ EXECUTIVE COMMUNICATION RULES:
 END the report after the summary table. No conclusion needed.
 """
 
-def _sanitize_taxgpt_answer(raw: str) -> str:
+def _sanitize_answer(raw: str) -> str:
     """Strip any intro text before Section 1 and any conclusion text after the summary table."""
     import re
     lines = raw.splitlines()
@@ -399,7 +402,7 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
         title = generate_title(answer)
         # Remove any leading/trailing ``` fences and strip intro/conclusion
         cleaned_answer = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", answer.strip(), flags=re.M)
-        cleaned_answer = _sanitize_taxgpt_answer(cleaned_answer)
+        cleaned_answer = _sanitize_answer(cleaned_answer)
         doc_url = create_google_doc(cleaned_answer, job_id, title, format_markdown=True)
         save_job_status(job_id, {"status": "done", "answer": cleaned_answer,
                                  "sources": [], "doc_url": doc_url})
