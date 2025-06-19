@@ -66,10 +66,10 @@ Extraction guidelines (added 2025-06-19)
     _usd_m  → millions USD (e.g., 150 for $150m)
     _usd_bn → billions USD (e.g., 1.5 for $1.5bn)
     _pct    → percentage values (e.g., 25 for 25%).
-- If the source says “$ 2.3 billion,” convert to billions (2.3) and use _usd_bn.
-  “$ 250 million” → 250 with _usd_m.
+- If the source says "2.3 billion," convert to billions (2.3) and use _usd_bn.
+  "250 million" → 250 with _usd_m.
 - Include every numeric figure ≥ $ 1 million or any percentage, even if it
-  doesn’t look directly tax-related.
+  doesn't look directly tax-related.
 - Avoid duplicate keys—keep the first occurrence.
 """
 
@@ -86,7 +86,6 @@ def _compress_chunk(chunk: str) -> dict:
     raw = resp.choices[0].message.content or ""
     # Remove ```json ... ``` or ``` fences if present
     if raw.lstrip().startswith("```"):
-        import re
         raw = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", raw.strip(), flags=re.S)
     return json.loads(raw)
 
@@ -337,6 +336,25 @@ EXECUTIVE COMMUNICATION RULES:
 END the report after the summary table. No conclusion needed.
 """
 
+def _sanitize_taxgpt_answer(raw: str) -> str:
+    """Strip any intro text before Section 1 and any conclusion text after the summary table."""
+    import re
+    lines = raw.splitlines()
+    # locate first Section 1 heading (variants accepted)
+    start = 0
+    for i, ln in enumerate(lines):
+        if re.match(r"\s*(?:##|#)?\s*1[\).\s]", ln):
+            start = i
+            break
+    # locate 'Conclusion' heading if present
+    end = len(lines)
+    for i in range(len(lines) - 1, -1, -1):
+        if re.match(r"\s*Conclusion", lines[i], re.I):
+            end = i
+            break
+    trimmed = "\n".join(lines[start:end]).strip()
+    return trimmed
+
 def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
     save_job_status(job_id, {"status": "processing", "answer": "", "sources": [], "doc_url": None})
     try:
@@ -376,10 +394,11 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
 
         # 4 google doc
         title = generate_title(answer)
-        import re
+        # Remove any leading/trailing ``` fences and strip intro/conclusion
         cleaned_answer = re.sub(r"^```[a-zA-Z]*\s*|\s*```$", "", answer.strip(), flags=re.M)
+        cleaned_answer = _sanitize_taxgpt_answer(cleaned_answer)
         doc_url = create_google_doc(cleaned_answer, job_id, title, format_markdown=True)
-        save_job_status(job_id, {"status": "done", "answer": answer,
+        save_job_status(job_id, {"status": "done", "answer": cleaned_answer,
                                  "sources": [], "doc_url": doc_url})
     except Exception as e:
         save_job_status(job_id, {"status": "error", "answer": str(e),
