@@ -70,6 +70,9 @@ Extraction guidelines (added 2025-06-19)
   "250 million" → 250 with _usd_m.
 - Include every numeric figure ≥ $ 1 million or any percentage, even if it
   doesn't look directly tax-related.
+- Pay special attention to any figure that contains the word "tax" (e.g.,
+  income tax expense, cash taxes paid, effective tax rate, tax credit value,
+  net operating loss carryforwards, deferred tax asset/liability).
 - Avoid duplicate keys—keep the first occurrence.
 """
 
@@ -292,17 +295,17 @@ Start with the title "Tax Strategy Analysis for [Company Name] - FY [Year]"
 Then immediately begin with Section 1 - no introduction needed.
 
 ## 1. Tax Savings Opportunities
-- Must cite at least two specific financial figures
+- Cite at least two specific financial figures where available; if fewer than two exist, write "Not disclosed" for the missing items
 - Focus on immediate actionable opportunities
 - Quantify potential savings where possible
 
 ## 2. Underutilized Tax Credits
-- Must cite at least two specific financial figures
+- Cite at least two specific financial figures where available; if fewer than two exist, write "Not disclosed" for the missing items
 - Focus on credits mentioned in or implied by financial data
 - Quantify credit values where possible
 
 ## 3. ETR Reduction Strategies
-- Must cite at least two specific financial figures
+- Cite at least two specific financial figures where available; if fewer than two exist, write "Not disclosed" for the missing items
 - Focus on structural and operational opportunities
 - Quantify ETR impact where possible
 
