@@ -336,8 +336,7 @@ EXECUTIVE COMMUNICATION RULES:
 3. Be specific with numbers but concise with explanations
 4. Avoid technical jargon
 5. No disclaimers or hedging language
-6. No references to sources or data origins
-7. No mentions of JSON, keys, or technical terms
+6. No mentions of JSON, keys, or technical terms
 
 END the report after the summary table. No conclusion needed.
 """
