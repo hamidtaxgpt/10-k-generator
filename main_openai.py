@@ -342,22 +342,15 @@ END the report after the summary table. No conclusion needed.
 """
 
 def _sanitize_answer(raw: str) -> str:
-    """Strip any intro text before Section 1 and any conclusion text after the summary table."""
+    """Return content up to (but excluding) any 'Conclusion' heading. Intro lines are preserved."""
     import re
     lines = raw.splitlines()
-    # locate first Section 1 heading (variants accepted)
-    start = 0
-    for i, ln in enumerate(lines):
-        if re.match(r"\s*(?:##|#)?\s*1[\).\s]", ln):
-            start = i
-            break
-    # locate 'Conclusion' heading if present
     end = len(lines)
     for i in range(len(lines) - 1, -1, -1):
-        if re.match(r"\s*Conclusion", lines[i], re.I):
+        if re.match(r"\s*#?\s*Conclusion", lines[i], re.I):
             end = i
             break
-    trimmed = "\n".join(lines[start:end]).strip()
+    trimmed = "\n".join(lines[:end]).strip()
     return trimmed
 
 def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
