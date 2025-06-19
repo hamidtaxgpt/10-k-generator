@@ -55,6 +55,22 @@ Return ONLY JSON with this exact schema:
   ]
 }
 If a value is missing write null. Do NOT use placeholders like $XX.
+
+------------------------------------------------------------------
+Extraction guidelines (added 2025-06-19)
+------------------------------------------------------------------
+- For every monetary figure or percentage that appears in the excerpt
+  (revenue, margins, tax expense, effective tax rate, assets, liabilities,
+  share count, etc.) add an entry under `keyNumbers`.
+- Name keys in lower_snake_case and suffix with a unit code:
+    _usd_m  → millions USD (e.g., 150 for $150m)
+    _usd_bn → billions USD (e.g., 1.5 for $1.5bn)
+    _pct    → percentage values (e.g., 25 for 25%).
+- If the source says “$ 2.3 billion,” convert to billions (2.3) and use _usd_bn.
+  “$ 250 million” → 250 with _usd_m.
+- Include every numeric figure ≥ $ 1 million or any percentage, even if it
+  doesn’t look directly tax-related.
+- Avoid duplicate keys—keep the first occurrence.
 """
 
 def _compress_chunk(chunk: str) -> dict:
