@@ -142,89 +142,8 @@ def analyze_with_openai_async(analysis_id, filing_text):
             filing_text = filing_text[:max_content_length] + "\n\n[Content truncated for analysis]"
         
         # Construct comprehensive tax analysis prompt
-        prompt = f"""You are a professional tax analyst specializing in corporate tax strategy and SEC filing analysis.
-
-STRICT CONTENT RULES (read carefully):
-1. You may use ONLY the financial metrics, text extracts, and other facts that appear in the JSON payload below.  
-2. DO NOT introduce generic IRS publications, statutes, or web links that are not present in the JSON.  
-3. If a figure is null, write "N/A (not disclosed)"—never guess.
-
-Start immediately with the first heading—no introductory sentences.
-
-Structure your analysis with the following sections exactly as titled:
-
-## 1. Tax Savings Opportunities
-- Available tax credits and incentives not fully utilized
-- Potential deductions that could be maximized
-- Strategic timing opportunities for tax benefits
-
-## 2. Underutilized Tax Credits
-- Research & Development credits
-- Foreign tax credits
-- Alternative minimum tax credits
-- Other applicable credits mentioned or implied in the filing
-
-## 3. Effective Tax Rate (ETR) Reduction Strategies
-- Geographic tax optimization
-- Transfer pricing opportunities
-- Corporate structure improvements
-- Timing strategies for recognition
-
-## 4. Peer Comparison and Benchmarking
-- Industry average effective tax rates
-- Similar-sized companies in the same sector
-- Best practices observed in comparable filings
-
-Provide actionable recommendations with estimated tax impact where possible, citing the JSON keys/labels you are using (e.g., "keyNumbers.research_and_development") so the reader can trace every claim to the provided data.
-
-Do NOT include:
-• Introductory paragraphs or summaries before Section 1.
-• A concluding paragraph or disclaimer after the Actionable Recommendations.
-• Generic boilerplate (e.g., "Based on the indexed information").
-
-For the final section titled "Actionable Recommendations":
-• Begin with a concise bulleted list – one bullet per action, 1–2 sentences each, highest-impact item first.  
-• Immediately after the bullets, insert a single Markdown table **without** code-fences, using these exact columns:  
-Priority | Action | Estimated Savings |  
-List the highest-impact item first.  Do not include any additional columns beyond these three.
-
-End the report after the last recommendation.
-
-SEC Filing Content:
-{filing_text}
-
-Provide a detailed, professional analysis with specific recommendations and quantified benefits where applicable.
-
-Do NOT include any disclaimer or note about excerpted data or model limitations.
-
-# ------------------------------------------------------------------
-# Quantification and data referencing rules
-# ------------------------------------------------------------------
-Quantification and data referencing rules
-• For every number or fact, reference the exact JSON key (e.g., `keyNumbers.backlog_usd_million_dec_31_2024`).
-• If a value is missing or null, write "N/A" instead of a number.
-• Each of Sections 1–3 must cite **at least two numeric figures** taken from the JSON (e.g., keyNumbers.revenue_2024_total_millions_usd).
-• Show units – use **$ m** for millions USD, **$ bn** for billions USD, and **%** for percentages.
-• Never invent numbers; if a value is null write "N/A".
-• Avoid ranges; give a single figure or midpoint.
-• Bold the figures when they appear inside prose for quick scanning.
-• When referencing qualitative statements, cite the `verbatimExtracts.label` (e.g., "see verbatimExtracts.Backlog").
-• When discussing business segments, use the `segmentBreakdown` array and show a table with columns: Segment | Revenue (USD m) | ETR (if available). Use the JSON keys for each value.
-
-Linking rules
-• When citing a source, embed the URL once using Markdown format with concise descriptive text (e.g., [IRS R&D credit guide]).  
-• Do **not** repeat the bare URL in parentheses or elsewhere; include each link only once.
-
-# ------------------------------------------------------------------
-# Key metrics table
-# ------------------------------------------------------------------
-Before Section 1, insert a Markdown table titled **"Key Metrics from Filing"** that lists every entry found in the `keyNumbers` object plus any other numeric figure you choose to reference.  Use this format (no code-fence):
-
-| Metric | Value | Source Label |
-
----
-"""
-
+        prompt = _build_analysis_prompt(filing_text, "SEC Filing Content")
+        
         logger.debug(f"Sending analysis request to OpenAI o3-mini")
         
         # Call OpenAI o3-mini
@@ -279,68 +198,6 @@ TAXGPT_HEADERS = {
 TAXGPT_CHAT_URL   = "https://api.taxgpt.com/api/chats/"
 TAXGPT_PROMPT_URL = "https://api.taxgpt.com/api/chats/{chat_id}/prompts/"
 
-TAXGPT_MAIN_PROMPT = """
-You are a senior tax strategy executive preparing a high-level analysis for C-suite executives.
-
-STRICT CONTENT RULES:
-1. Use ONLY facts and figures from the provided JSON data
-2. NEVER mention JSON, source labels, or technical references
-3. NEVER include external links or citations
-4. Present all numbers in a clean format:
-   - Use "$ XXm" for millions (e.g., "$ 150m")
-   - Use "$ XXbn" for billions (e.g., "$ 1.5bn")
-   - Use "XX%" for percentages (e.g., "25%")
-5. NEVER use ranges - provide specific numbers
-6. If data is unavailable, use "Not disclosed" (never use N/A, null, or TBD)
-
-FORMAT AND STRUCTURE:
-Start with the title "Tax Strategy Analysis for [Company Name] - FY [Year]"
-Then immediately begin with Section 1 - no introduction needed.
-
-## 1. Tax Savings Opportunities
-- Cite at least two specific financial figures where available; if fewer than two exist, write "Not disclosed" for the missing items
-- Focus on immediate actionable opportunities
-- Quantify potential savings where possible
-
-## 2. Underutilized Tax Credits
-- Cite at least two specific financial figures where available; if fewer than two exist, write "Not disclosed" for the missing items
-- Focus on credits mentioned in or implied by financial data
-- Quantify credit values where possible
-
-## 3. ETR Reduction Strategies
-- Cite at least two specific financial figures where available; if fewer than two exist, write "Not disclosed" for the missing items
-- Focus on structural and operational opportunities
-- Quantify ETR impact where possible
-
-## 4. Peer Comparison
-- Compare key metrics to industry standards
-- Focus on tax efficiency metrics
-- Identify competitive advantages/disadvantages
-
-## 5. Tax Savings Summary
-Present ONE table at the end with this EXACT format:
-
-| Strategy | Estimated Savings |
-|----------|-------------------|
-| [Clear strategy name] | [Projected saving in $] |
-
-Table Rules:
-- Include 4–6 highest-impact strategies
-- Every figure must be drawn directly from the data
-- Use consistent formatting ($ XXm or $ XXbn)
-- No placeholder values (Not disclosed, TBD, etc.)
-
-EXECUTIVE COMMUNICATION RULES:
-1. Write in clear, executive-level language
-2. Focus on material impacts (>$ 1m)
-3. Be specific with numbers but concise with explanations
-4. Avoid technical jargon
-5. No disclaimers or hedging language
-6. No mentions of JSON, keys, or technical terms
-
-END the report after the summary table. No conclusion needed.
-"""
-
 def _sanitize_answer(raw: str) -> str:
     """Return content up to (but excluding) any 'Conclusion' heading. Intro lines are preserved."""
     import re
@@ -360,8 +217,8 @@ def analyze_with_taxgpt_async(job_id: str, compressed_json: dict):
         chat_id = requests.post(TAXGPT_CHAT_URL, headers=TAXGPT_HEADERS,
                                 json={"type": "professional"}, timeout=30).json()["id"]
 
-        # 2 send prompt
-        full_prompt = TAXGPT_MAIN_PROMPT + "\n\nJSON DATA:\n" + json.dumps(compressed_json, indent=2)
+        # 2 send prompt (identical to OpenAI prompt but with JSON data inserted)
+        full_prompt = _build_analysis_prompt(json.dumps(compressed_json, indent=2), "JSON DATA")
         requests.post(
             TAXGPT_PROMPT_URL.format(chat_id=chat_id),
             headers=TAXGPT_HEADERS,
@@ -549,6 +406,97 @@ def not_found(error):
 @app.errorhandler(405)
 def method_not_allowed(error):
     return jsonify({"error": "Method not allowed"}), 405
+
+# Helper --------------------------------------------------------------------
+# A single helper to assemble the long-form analysis prompt.  Using one shared
+# template guarantees that both the OpenAI and TaxGPT pipelines stay perfectly
+# in-sync when instructions change in the future.
+# ----------------------------------------------------------------------------
+
+def _build_analysis_prompt(content: str, content_label: str) -> str:
+    """Return the full analysis prompt, injecting the given content and label."""
+    return f"""You are a professional tax analyst specializing in corporate tax strategy and SEC filing analysis.
+
+STRICT CONTENT RULES (read carefully):
+1. You may use ONLY the financial metrics, text extracts, and other facts that appear in the JSON payload below.  
+2. DO NOT introduce generic IRS publications, statutes, or web links that are not present in the JSON.  
+3. If a figure is null, write "N/A (not disclosed)"—never guess.
+
+Start immediately with the first heading—no introductory sentences.
+
+Structure your analysis with the following sections exactly as titled:
+
+## 1. Tax Savings Opportunities
+- Available tax credits and incentives not fully utilized
+- Potential deductions that could be maximized
+- Strategic timing opportunities for tax benefits
+
+## 2. Underutilized Tax Credits
+- Research & Development credits
+- Foreign tax credits
+- Alternative minimum tax credits
+- Other applicable credits mentioned or implied in the filing
+
+## 3. Effective Tax Rate (ETR) Reduction Strategies
+- Geographic tax optimization
+- Transfer pricing opportunities
+- Corporate structure improvements
+- Timing strategies for recognition
+
+## 4. Peer Comparison and Benchmarking
+- Industry average effective tax rates
+- Similar-sized companies in the same sector
+- Best practices observed in comparable filings
+
+Provide actionable recommendations with estimated tax impact where possible, citing the JSON keys/labels you are using (e.g., "keyNumbers.research_and_development") so the reader can trace every claim to the provided data.
+
+Do NOT include:
+• Introductory paragraphs or summaries before Section 1.
+• A concluding paragraph or disclaimer after the Actionable Recommendations.
+• Generic boilerplate (e.g., "Based on the indexed information").
+
+For the final section titled "Actionable Recommendations":
+• Begin with a concise bulleted list – one bullet per action, 1–2 sentences each, highest-impact item first.  
+• Immediately after the bullets, insert a single Markdown table **without** code-fences, using these exact columns:  
+Priority | Action | Estimated Savings |  
+List the highest-impact item first.  Do not include any additional columns beyond these three.
+
+End the report after the last recommendation.
+
+{content_label}:
+{content}
+
+Provide a detailed, professional analysis with specific recommendations and quantified benefits where applicable.
+
+Do NOT include any disclaimer or note about excerpted data or model limitations.
+
+# ------------------------------------------------------------------
+# Quantification and data referencing rules
+# ------------------------------------------------------------------
+Quantification and data referencing rules
+• For every number or fact, reference the exact JSON key (e.g., `keyNumbers.backlog_usd_million_dec_31_2024`).
+• If a value is missing or null, write "N/A" instead of a number.
+• Each of Sections 1–3 must cite **at least two numeric figures** taken from the JSON (e.g., keyNumbers.revenue_2024_total_millions_usd).
+• Show units – use **$ m** for millions USD, **$ bn** for billions USD, and **%** for percentages.
+• Never invent numbers; if a value is null write "N/A".
+• Avoid ranges; give a single figure or midpoint.
+• Bold the figures when they appear inside prose for quick scanning.
+• When referencing qualitative statements, cite the `verbatimExtracts.label` (e.g., "see verbatimExtracts.Backlog").
+• When discussing business segments, use the `segmentBreakdown` array and show a table with columns: Segment | Revenue (USD m) | ETR (if available). Use the JSON keys for each value.
+
+Linking rules
+• When citing a source, embed the URL once using Markdown format with concise descriptive text (e.g., [IRS R&D credit guide]).  
+• Do **not** repeat the bare URL in parentheses or elsewhere; include each link only once.
+
+# ------------------------------------------------------------------
+# Key metrics table
+# ------------------------------------------------------------------
+Before Section 1, insert a Markdown table titled **"Key Metrics from Filing"** that lists every entry found in the `keyNumbers` object plus any other numeric figure you choose to reference.  Use this format (no code-fence):
+
+| Metric | Value | Source Label |
+
+---
+"""
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
