@@ -160,22 +160,28 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
 
     # Handle the title (first line) as bold
     if lines and lines[0].strip():
-        title_text = lines[0].strip() + "\n"
+        title_text = lines[0].strip()
+        # Check if it's a markdown heading
+        if title_text.startswith('#'):
+            # Remove all # symbols and trim
+            title_text = title_text.lstrip('#').strip()
+        title_text += "\n"
+        
         requests_batch.append({
             "insertText": {
                 "location": {"index": current_index},
                 "text": title_text
             }
         })
-        # Make title bold
+        # Apply HEADING_1 style to title
         requests_batch.append({
-            "updateTextStyle": {
+            "updateParagraphStyle": {
                 "range": {
                     "startIndex": current_index,
                     "endIndex": current_index + len(title_text) - 1
                 },
-                "textStyle": {"bold": True},
-                "fields": "bold"
+                "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                "fields": "namedStyleType"
             }
         })
         current_index += len(title_text)
