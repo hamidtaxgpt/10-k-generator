@@ -155,14 +155,23 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
     """Convert a subset of Markdown into Docs API batchUpdate requests."""
     requests_batch: List[Dict[str, Any]] = []
     lines = text.split("\n")
-    idx = 0
     current_index = 1
 
-    # Handle the title (first line) as a heading if it has # markers
-    if lines and lines[0].strip():
-        line = lines[0].strip()
-        handled = False
-        # Process through the same heading logic as other lines
+    for line in lines:
+        line = line.strip()
+        if not line:
+            # Handle empty lines
+            requests_batch.append({
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": "\n"
+                }
+            })
+            current_index += 1
+            continue
+
+        # Handle headings
+        handled_heading = False
         for prefix, style in [("####", "HEADING_4"), ("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
             if line.startswith(prefix):
                 heading_text = line[len(prefix):].strip() + "\n"
@@ -176,148 +185,27 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
                     "updateParagraphStyle": {
                         "range": {
                             "startIndex": current_index,
-                            "endIndex": current_index + len(heading_text) - 1
+                            "endIndex": current_index + len(heading_text)
                         },
                         "paragraphStyle": {"namedStyleType": style},
                         "fields": "namedStyleType"
                     }
                 })
                 current_index += len(heading_text)
-                handled = True
-                break
-        
-        # If no heading markers, treat as regular bold title
-        if not handled:
-            title_text = line + "\n"
-            requests_batch.append({
-                "insertText": {
-                    "location": {"index": current_index},
-                    "text": title_text
-                }
-            })
-            requests_batch.append({
-                "updateTextStyle": {
-                    "range": {
-                        "startIndex": current_index,
-                        "endIndex": current_index + len(title_text) - 1
-                    },
-                    "textStyle": {"bold": True},
-                    "fields": "bold"
-                }
-            })
-            current_index += len(title_text)
-        idx += 1
-
-    while idx < len(lines):
-        line = lines[idx]
-        # --- Handle lines starting with # (but not ##, ###)
-        if line.strip().startswith("# "):
-            # Remove the # and leading/trailing whitespace
-            heading_text = line.strip()[2:].strip() + "\n"
-            requests_batch.append({
-                "insertText": {
-                    "location": {"index": current_index},
-                    "text": heading_text
-                }
-            })
-            # Make heading bold
-            requests_batch.append({
-                "updateTextStyle": {
-                    "range": {
-                        "startIndex": current_index,
-                        "endIndex": current_index + len(heading_text) - 1
-                    },
-                    "textStyle": {"bold": True},
-                    "fields": "bold"
-                }
-            })
-            current_index += len(heading_text)
-            idx += 1
-            continue
-
-        # --- Table handling
-        if line.strip().startswith("|") and "|" in line:
-            tbl_lines: list[str] = []
-            while idx < len(lines) and lines[idx].strip().startswith("|"):
-                tbl_lines.append(lines[idx].strip())
-                idx += 1
-            parsed_rows: list[list[str]] = []
-            for r in tbl_lines:
-                cells = [re.sub(r"\*+", "", c.strip()) for c in r.strip("| ").split("|")]
-                parsed_rows.append(cells)
-            if parsed_rows and all(re.fullmatch(r"-+", c) for c in parsed_rows[1]):
-                parsed_rows.pop(1)
-            col_count = max(len(r) for r in parsed_rows)
-            col_widths = [0] * col_count
-            for r in parsed_rows:
-                for i, cell in enumerate(r):
-                    col_widths[i] = max(col_widths[i], len(cell))
-            for row_cells in parsed_rows:
-                padded = [row_cells[i].ljust(col_widths[i]) if i < len(row_cells) else "".ljust(col_widths[i]) for i in range(col_count)]
-                line_text = "  ".join(padded) + "\n"
-                requests_batch.append({"insertText": {"location": {"index": current_index}, "text": line_text}})
-                requests_batch.append({
-                    "updateTextStyle": {
-                        "range": {"startIndex": current_index, "endIndex": current_index + len(line_text) - 1},
-                        "textStyle": {"weightedFontFamily": {"fontFamily": "Courier New"}},
-                        "fields": "weightedFontFamily",
-                    }
-                })
-                current_index += len(line_text)
-                requests_batch.append({"insertText": {"location": {"index": current_index}, "text": "\n"}})
-                current_index += 1
-            continue
-
-        # --- Blank line
-        if not line.strip():
-            requests_batch.append({"insertText": {"location": {"index": current_index}, "text": "\n"}})
-            current_index += 1
-            idx += 1
-            continue
-
-        # --- Helper to insert paragraph
-        def _insert(raw: str, style: str | None = None, bullet: bool = False):
-            nonlocal current_index
-            clean = re.sub(r"\*+", "", raw) + "\n"
-            requests_batch.append({"insertText": {"location": {"index": current_index}, "text": clean}})
-            if style:
-                requests_batch.append({
-                    "updateParagraphStyle": {
-                        "range": {"startIndex": current_index, "endIndex": current_index + len(clean) - 1},
-                        "paragraphStyle": {"namedStyleType": style},
-                        "fields": "namedStyleType",
-                    }
-                })
-            if bullet:
-                requests_batch.append({
-                    "createParagraphBullets": {
-                        "range": {"startIndex": current_index, "endIndex": current_index + len(clean) - 1},
-                        "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
-                    }
-                })
-            _apply_inline_styles(raw + "\n", current_index, requests_batch)
-            current_index += len(clean)
-
-        # Handle other headings (##, ###)
-        handled_heading = False
-        for prefix, style in [("####", "HEADING_4"), ("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
-            if line.startswith(prefix):
-                _insert(line[len(prefix):].strip(), style)
-                idx += 1
                 handled_heading = True
                 break
-        if handled_heading:
-            continue
-
-        # Bullets
-        if line.strip().startswith("- "):
-            _insert(line.strip()[2:], bullet=True)
-            idx += 1
-            continue
-
-        # Plain paragraph
-        _insert(line)
-        idx += 1
+        
+        if not handled_heading:
+            # Handle regular text with inline styling
+            line_text = line + "\n"
+            requests_batch.append({
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": line_text
+                }
+            })
+            _apply_inline_styles(line_text, current_index, requests_batch)
+            current_index += len(line_text)
 
     return requests_batch
 
