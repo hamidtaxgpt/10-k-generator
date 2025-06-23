@@ -160,28 +160,22 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
 
     # Handle the title (first line) as bold
     if lines and lines[0].strip():
-        title_text = lines[0].strip()
-        # Check if it's a markdown heading
-        if title_text.startswith('#'):
-            # Remove all # symbols and trim
-            title_text = title_text.lstrip('#').strip()
-        title_text += "\n"
-        
+        title_text = lines[0].strip() + "\n"
         requests_batch.append({
             "insertText": {
                 "location": {"index": current_index},
                 "text": title_text
             }
         })
-        # Apply HEADING_1 style to title
+        # Make title bold
         requests_batch.append({
-            "updateParagraphStyle": {
+            "updateTextStyle": {
                 "range": {
                     "startIndex": current_index,
                     "endIndex": current_index + len(title_text) - 1
                 },
-                "paragraphStyle": {"namedStyleType": "HEADING_1"},
-                "fields": "namedStyleType"
+                "textStyle": {"bold": True},
+                "fields": "bold"
             }
         })
         current_index += len(title_text)
@@ -279,7 +273,7 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
 
         # Handle other headings (##, ###)
         handled_heading = False
-        for prefix, style in [("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
+        for prefix, style in [("####", "HEADING_4"), ("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
             if line.startswith(prefix):
                 _insert(line[len(prefix):].strip(), style)
                 idx += 1
