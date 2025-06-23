@@ -157,10 +157,12 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
     lines = text.split("\n")
     current_index = 1
 
-    for line in lines:
-        line = line.strip()
+    idx = 0
+    while idx < len(lines):
+        line = lines[idx].strip()
+        
+        # Handle empty lines
         if not line:
-            # Handle empty lines
             requests_batch.append({
                 "insertText": {
                     "location": {"index": current_index},
@@ -168,10 +170,23 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
                 }
             })
             current_index += 1
+            idx += 1
+            continue
+
+        # Handle horizontal rules
+        if line == "---":
+            requests_batch.append({
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": "_" * 40 + "\n"  # 40 underscores for the line
+                }
+            })
+            current_index += 41  # 40 chars + newline
+            idx += 1
             continue
 
         # Handle headings
-        handled_heading = False
+        handled = False
         for prefix, style in [("####", "HEADING_4"), ("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
             if line.startswith(prefix):
                 heading_text = line[len(prefix):].strip() + "\n"
@@ -192,20 +207,114 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
                     }
                 })
                 current_index += len(heading_text)
-                handled_heading = True
+                handled = True
                 break
-        
-        if not handled_heading:
-            # Handle regular text with inline styling
-            line_text = line + "\n"
+
+        if handled:
+            idx += 1
+            continue
+
+        # Handle tables
+        if line.startswith("|") and "|" in line:
+            table_lines = []
+            while idx < len(lines) and lines[idx].strip().startswith("|"):
+                table_lines.append(lines[idx].strip())
+                idx += 1
+            
+            # Parse table rows
+            parsed_rows = []
+            for row in table_lines:
+                cells = [c.strip() for c in row.strip("| ").split("|")]
+                # Store original cells before removing formatting
+                orig_cells = cells.copy()
+                # Remove markdown formatting from cells for width calculation
+                cells = [re.sub(r"\*\*(.+?)\*\*", r"\1", c) for c in cells]
+                cells = [re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", c) for c in cells]
+                parsed_rows.append((cells, orig_cells))
+            
+            # Remove separator row if present
+            if len(parsed_rows) > 1 and all(re.match(r"^-+$", cell) for cell in parsed_rows[1][0]):
+                parsed_rows.pop(1)
+            
+            # Calculate column widths using unformatted cells
+            col_count = max(len(row[0]) for row in parsed_rows)
+            col_widths = [0] * col_count
+            for row, _ in parsed_rows:
+                for i, cell in enumerate(row):
+                    if i < len(col_widths):
+                        col_widths[i] = max(col_widths[i], len(cell))
+            
+            # Output formatted table
+            for unformatted_cells, orig_cells in parsed_rows:
+                # Pad cells to column width
+                padded = [
+                    orig_cells[i].ljust(col_widths[i]) if i < len(orig_cells) else "".ljust(col_widths[i])
+                    for i in range(col_count)
+                ]
+                line_text = "  ".join(padded) + "\n"
+                
+                # Add the text with monospace font
+                requests_batch.append({
+                    "insertText": {
+                        "location": {"index": current_index},
+                        "text": line_text
+                    }
+                })
+                requests_batch.append({
+                    "updateTextStyle": {
+                        "range": {
+                            "startIndex": current_index,
+                            "endIndex": current_index + len(line_text) - 1
+                        },
+                        "textStyle": {"weightedFontFamily": {"fontFamily": "Courier New"}},
+                        "fields": "weightedFontFamily"
+                    }
+                })
+                # Apply bold/italic formatting to the cells
+                _apply_inline_styles(line_text, current_index, requests_batch)
+                current_index += len(line_text)
+            continue
+
+        # Handle bullets (including nested)
+        original_line = lines[idx]  # Keep the original line with whitespace
+        stripped_line = original_line.lstrip()
+        if stripped_line.startswith("- "):
+            # Calculate nesting level based on leading spaces (2 spaces per level)
+            leading_spaces = len(original_line) - len(stripped_line)
+            nesting_level = leading_spaces // 2  # Integer division
+            bullet_text = stripped_line[2:].strip() + "\n"
             requests_batch.append({
                 "insertText": {
                     "location": {"index": current_index},
-                    "text": line_text
+                    "text": bullet_text
                 }
             })
-            _apply_inline_styles(line_text, current_index, requests_batch)
-            current_index += len(line_text)
+            requests_batch.append({
+                "createParagraphBullets": {
+                    "range": {
+                        "startIndex": current_index,
+                        "endIndex": current_index + len(bullet_text)
+                    },
+                    "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+                    "nestingLevel": nesting_level
+                }
+            })
+            _apply_inline_styles(bullet_text, current_index, requests_batch)
+            current_index += len(bullet_text)
+            idx += 1
+            continue
+
+        # Regular text
+        line_text = line + "\n"
+        requests_batch.append({
+            "insertText": {
+                "location": {"index": current_index},
+                "text": line_text
+            }
+        })
+        _apply_inline_styles(line_text, current_index, requests_batch)
+        current_index += len(line_text)
+        idx += 1
 
     return requests_batch
 
