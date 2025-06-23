@@ -158,27 +158,54 @@ def convert_markdown_to_docs_format(text: str) -> List[Dict[str, Any]]:
     idx = 0
     current_index = 1
 
-    # Handle the title (first line) as bold
+    # Handle the title (first line) as a heading if it has # markers
     if lines and lines[0].strip():
-        title_text = lines[0].strip() + "\n"
-        requests_batch.append({
-            "insertText": {
-                "location": {"index": current_index},
-                "text": title_text
-            }
-        })
-        # Make title bold
-        requests_batch.append({
-            "updateTextStyle": {
-                "range": {
-                    "startIndex": current_index,
-                    "endIndex": current_index + len(title_text) - 1
-                },
-                "textStyle": {"bold": True},
-                "fields": "bold"
-            }
-        })
-        current_index += len(title_text)
+        line = lines[0].strip()
+        handled = False
+        # Process through the same heading logic as other lines
+        for prefix, style in [("####", "HEADING_4"), ("###", "HEADING_3"), ("##", "HEADING_2"), ("#", "HEADING_1")]:
+            if line.startswith(prefix):
+                heading_text = line[len(prefix):].strip() + "\n"
+                requests_batch.append({
+                    "insertText": {
+                        "location": {"index": current_index},
+                        "text": heading_text
+                    }
+                })
+                requests_batch.append({
+                    "updateParagraphStyle": {
+                        "range": {
+                            "startIndex": current_index,
+                            "endIndex": current_index + len(heading_text) - 1
+                        },
+                        "paragraphStyle": {"namedStyleType": style},
+                        "fields": "namedStyleType"
+                    }
+                })
+                current_index += len(heading_text)
+                handled = True
+                break
+        
+        # If no heading markers, treat as regular bold title
+        if not handled:
+            title_text = line + "\n"
+            requests_batch.append({
+                "insertText": {
+                    "location": {"index": current_index},
+                    "text": title_text
+                }
+            })
+            requests_batch.append({
+                "updateTextStyle": {
+                    "range": {
+                        "startIndex": current_index,
+                        "endIndex": current_index + len(title_text) - 1
+                    },
+                    "textStyle": {"bold": True},
+                    "fields": "bold"
+                }
+            })
+            current_index += len(title_text)
         idx += 1
 
     while idx < len(lines):
