@@ -1,9 +1,12 @@
-run = "gunicorn main:app"
-modules = ["python-3.10:v18-20230807-322e88b"]
+run = "python3 -m gunicorn main:app --bind 0.0.0.0:8080 --worker-class=gthread --workers=1 --threads=2 --timeout=0"
+entrypoint = "main.py"
 
 [nix]
 channel = "stable-23_05"
 
+[env]
+PORT = "8080"
+
 [deployment]
-run = ["sh", "-c", "gunicorn main:app"]
+run = ["sh", "-c", "python3 -m gunicorn main:app --bind 0.0.0.0:8080 --worker-class=gthread --workers=1 --threads=2 --timeout=0"]
 deploymentTarget = "cloudrun" 

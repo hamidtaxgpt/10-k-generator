@@ -580,6 +580,12 @@ def not_allowed(e):
 
 
 if __name__ == "__main__":
-    # Use port 5001 locally to avoid conflicts
-    port = int(os.environ.get("PORT", 5001))
+    # Default to port 8080 for Replit
+    port = int(os.environ.get("PORT", 8080))
+    # In development, use Flask's built-in server
     app.run(host='0.0.0.0', port=port)
+else:
+    # In production (gunicorn), app is imported directly
+    port = int(os.environ.get("PORT", 8080))
+    # Configure any production-specific settings here
+    pass
